@@ -120,6 +120,7 @@ data = extract_bibtex_entries(markdown)
 embeddings = embedding([markdown, data["title"]])
 keywords = keyword_extraction(markdown)
 
+# Vector store entry
 entry = {}
 entry["key"] = data["key"]
 entry["embeddings"] = {"title": embeddings[0], "contents": embeddings[1]}
@@ -127,3 +128,18 @@ entry["keywords"] = keywords
 
 with open(VECTOR_STORE_LOCATION, 'w') as fp:
     json.dump(entry, fp)
+
+# Add metadata to Markdown file
+import yaml
+from datetime import datetime
+
+metadata = {}
+metadata["tags"] = keywords.append("Paper")
+metadata["key"] = data["key"]
+metadata["title"] = data["title"]
+metadata["author"] = data["author"]
+metadata["year"] = int(data["year"])
+metadata["created"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+
+print(yaml.dump(metadata, default_flow_style=False))
