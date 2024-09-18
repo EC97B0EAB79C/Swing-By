@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 
 ##
+# Global parameters
+VECTOR_STORE_LOCATION = "./test/vector_store.json"
+
+##
 # Argement Parser
+import re
 import argparse
 
 parser = argparse.ArgumentParser(
@@ -25,6 +30,24 @@ args = parser.parse_args()
 with open(args.filename, 'r') as file:
     markdown = file.read()
 
+# Extract BibTeX metadata
+import bibtexparser
+
+def bibtex_2_dict(bibtex):
+    fields_dict = bibtex.fields_dict
+    data = {}
+    data["key"] = bibtex.key
+    data["title"] = fields_dict['title'].value
+    data["author"] = fields_dict['author'].value.split(' and ')
+    data["year"] = fields_dict['year'].value
+    return data
+
+def extract_bibtex_entries(markdown_text):
+    pattern = r'```BibTeX(.*?)```'
+    match = re.findall(pattern, markdown_text, re.DOTALL | re.IGNORECASE)
+    entry = bibtexparser.parse_string(match[0])
+    return bibtex_2_dict(entry.entries[0])
+
 ##
 # OpenAI
 import os
@@ -32,49 +55,75 @@ from openai import OpenAI
 endpoint = "https://models.inference.ai.azure.com"
 token = os.environ["GITHUB_TOKEN"]
 
-OpenAI Embedding
+# OpenAI Embedding
 from azure.ai.inference import EmbeddingsClient
 from azure.core.credentials import AzureKeyCredential
 
-embedding_model_name = "text-embedding-3-small"
-client = EmbeddingsClient(
-    endpoint=endpoint,
-    credential=AzureKeyCredential(token)
-)
+def embedding(text: list[str]) -> list[float]: 
+    embedding_model_name = "text-embedding-3-small"
+    client = EmbeddingsClient(
+        endpoint=endpoint,
+        credential=AzureKeyCredential(token)
+    )
 
-embedding_response = client.embed(
-    input=[markdown],
-    model=embedding_model_name
-)
+    embedding_response = client.embed(
+        input = text,
+        model = embedding_model_name
+    )
 
+    embeddings = []
+    for data in embedding_response.data:
+        embeddings.append(data.embedding)
+
+    return embeddings
 
 # OpenAI Keyword Extraction
-from pydantic import BaseModel
-
-chat_model_name = "gpt-4o-mini"
-client = OpenAI(
-    base_url=endpoint,
-    api_key=token,
-)
-
-GPT_INSTRUCTIONS = """
-This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide. It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later. The GPT will aim to provide up to 8 keywords, with 3 of them being general tags applicable to a broad context, and 5 being more specific to the content of the note. It avoids suggesting overly generic or redundant keywords unless necessary. It will list the tags using underscores instead of spaces, ordered from the most general to the most specific. Every tag will be lowercase.
-Return the list in json format with key "keywords".
-"""
-
-messages = [
-    {"role":"system", "content": GPT_INSTRUCTIONS},
-    {"role": "user", "content": markdown},
-]
-
-completion = client.beta.chat.completions.parse(
-    model = chat_model_name,
-    messages = messages,
-    response_format = { "type": "json_object" }
-)
-
-chat_response = completion.choices[0].message
-
 import json
-keywords = json.loads(chat_response.content)["keywords"]
 
+def keyword_extraction(text: str) -> list[str]:
+    chat_model_name = "gpt-4o-mini"
+    client = OpenAI(
+        base_url=endpoint,
+        api_key=token,
+    )
+
+    GPT_INSTRUCTIONS = """
+    This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
+    It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
+    The GPT will aim to provide up to 8 keywords, with 3 of them being general tags applicable to a broad context, and 5 being more specific to the content of the note.
+    It avoids suggesting overly generic or redundant keywords unless necessary.
+    It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
+    Every tag will be lowercase.
+    Return the list in json format with key "keywords".
+    """
+
+    messages = [
+        {"role":"system", "content": GPT_INSTRUCTIONS},
+        {"role": "user", "content": markdown},
+    ]
+
+    completion = client.beta.chat.completions.parse(
+        model = chat_model_name,
+        messages = messages,
+        response_format = { "type": "json_object" }
+    )
+
+    chat_response = completion.choices[0].message
+
+    return json.loads(chat_response.content)["keywords"]
+
+
+
+##
+# Processing
+data = extract_bibtex_entries(markdown)
+embeddings = embedding([markdown, data["title"]])
+keywords = keyword_extraction(markdown)
+
+entry = {}
+entry["key"] = data["key"]
+entry["embeddings"] = {"title": embeddings[0], "contents": embeddings[1]}
+entry["keywords"] = keywords
+
+with open(VECTOR_STORE_LOCATION, 'w') as fp:
+    json.dump(entry, fp)
