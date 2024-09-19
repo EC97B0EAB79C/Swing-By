@@ -3,6 +3,8 @@
 ##
 # Global parameters
 VECTOR_STORE_LOCATION = "./test/vector_store.json"
+N = 10
+RATIO = 0.4
 
 ##
 # Argement Parser
@@ -87,14 +89,15 @@ def keyword_extraction(text: str) -> list[str]:
         api_key=token,
     )
 
-    GPT_INSTRUCTIONS = """
+# TODO Category Prompt
+    GPT_INSTRUCTIONS = f"""
     This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
     It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
-    The GPT will aim to provide up to 8 keywords, with 3 of them being general tags applicable to a broad context, and 5 being more specific to the content of the note.
+    The GPT will aim to provide up to {N} keywords, with 1 keyword acting as a category, {N*RATIO} general tags applicable to a broad context, and {N - 1 - N*RATIO} being more specific to the content of the note.
     It avoids suggesting overly generic or redundant keywords unless necessary.
     It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
     Every tag will be lowercase.
-    Return the list in json format with key "keywords".
+    Return the list in json format with key "keywords" for keyword list.
     """
 
     messages = [
@@ -109,8 +112,9 @@ def keyword_extraction(text: str) -> list[str]:
     )
 
     chat_response = completion.choices[0].message
-
-    return json.loads(chat_response.content)["keywords"]
+    json_data=json.loads(chat_response.content)
+    print(json_data)
+    return json_data["keywords"]
 
 
 
@@ -134,10 +138,11 @@ import yaml
 from datetime import datetime
 
 metadata = {}
-metadata["tags"] = keywords.append("Paper")
+metadata["tags"] = ["Paper"] + keywords
 metadata["key"] = data["key"]
 metadata["title"] = data["title"]
 metadata["author"] = data["author"]
+metadata["category"] = keywords[0]
 metadata["year"] = int(data["year"])
 metadata["created"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
