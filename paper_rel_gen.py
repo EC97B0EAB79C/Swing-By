@@ -2,9 +2,10 @@
 
 ##
 # Global parameters
-VECTOR_STORE_LOCATION = "./test/vector_store.json"
 N = 10
 RATIO = 0.4
+WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
+VECTOR_STORE_LOCATION = "./test/vector_store.json"
 
 ##
 # Argement Parser
@@ -118,9 +119,18 @@ def keyword_extraction(text: str) -> list[str]:
     )
 
     chat_response = completion.choices[0].message
-    json_data=json.loads(chat_response.content)
-    print(json_data)
-    return json_data["keywords"]
+    json_data = json.loads(chat_response.content)
+
+    try:
+        assert len(keywords) == 10
+    except:
+        print(f"\033[33mWARNING\033[0m: created keywords({keywords})")
+        if input(WARNING_TEXT) == 'y':
+            return keywords
+        print("\033[31mABORTED\033[0m")
+        exit()
+
+    return keywords
 
 
 
