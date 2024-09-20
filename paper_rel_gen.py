@@ -121,6 +121,8 @@ def keyword_extraction(text: str) -> list[str]:
     chat_response = completion.choices[0].message
     json_data = json.loads(chat_response.content)
 
+    keywords = json_data["keywords"]
+
     try:
         assert len(keywords) == 10
     except:
