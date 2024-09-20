@@ -19,10 +19,16 @@ parser.add_argument(
     'filename',
     help='Markdown file to process.'
     )
+# parser.add_argument(
+#     '-i',
+#     '--ignore-bibtex',
+#     action='store_true'
+#     )
 parser.add_argument(
-    '-i',
-    '--ignore-bibtex',
-    action='store_true'
+    '-vs',
+    '--vector-store',
+    action='store_true',
+    help='Creates embedding vector of the text.'
     )
 args = parser.parse_args()
 
@@ -121,19 +127,20 @@ def keyword_extraction(text: str) -> list[str]:
 ##
 # Processing
 data = extract_bibtex_entries(markdown)
-embeddings = embedding([markdown, data["title"]])
 keywords = keyword_extraction(markdown)
+if args.vector_store:
+    embeddings = embedding([markdown, data["title"]])
 
-# Vector store entry
-entry = {}
-entry["key"] = data["key"]
-entry["embeddings"] = {"title": embeddings[0], "contents": embeddings[1]}
-entry["keywords"] = keywords
+    # Vector store entry
+    entry = {}
+    entry["key"] = data["key"]
+    entry["embeddings"] = {"title": embeddings[0], "contents": embeddings[1]}
+    entry["keywords"] = keywords
 
-with open(VECTOR_STORE_LOCATION, 'w') as fp:
-    json.dump(entry, fp)
+    with open(VECTOR_STORE_LOCATION, 'w') as fp:
+        json.dump(entry, fp)
 
-# Add metadata to Markdown file
+# Process metadata
 import yaml
 from datetime import datetime
 
@@ -147,4 +154,10 @@ metadata["year"] = int(data["year"])
 metadata["created"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
-print(yaml.dump(metadata, default_flow_style=False))
+# Add matadata to Markdown
+with open(f"{args.filename}", 'w') as file:
+    file.write("---\n")
+    file.write(yaml.dump(metadata, default_flow_style=False))
+    file.write("---\n")
+    file.write(markdown)
+

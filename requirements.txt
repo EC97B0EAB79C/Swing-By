@@ -1,4 +1,4 @@
 openai
 azure-ai-inference
---pre bibtexparser
+bibtexparser==2.0.0b7
 pyyaml
