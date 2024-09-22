@@ -149,7 +149,7 @@ keywords = keyword_extraction(markdown)
 # If keyword only mode
 if args.keyword_only:
     for keyword in keywords:
-        print(f"- keyword")
+        print(f"- {keyword}")
     exit()
 
 data = extract_bibtex_entries(markdown)
