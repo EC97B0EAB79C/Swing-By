@@ -31,6 +31,11 @@ parser.add_argument(
     action='store_true',
     help='Creates embedding vector of the text.'
     )
+parser.add_argument(
+    '--keyword-only',
+    action='store_true',
+    help='Only prints keywords and exits.'
+    )
 args = parser.parse_args()
 
 
@@ -138,8 +143,17 @@ def keyword_extraction(text: str) -> list[str]:
 
 ##
 # Processing
-data = extract_bibtex_entries(markdown)
+
 keywords = keyword_extraction(markdown)
+
+# If keyword only mode
+if args.keyword_only:
+    for keyword in keywords:
+        print(f"- keyword")
+    exit()
+
+data = extract_bibtex_entries(markdown)
+
 if args.vector_store:
     embeddings = embedding([markdown, data["title"]])
 
