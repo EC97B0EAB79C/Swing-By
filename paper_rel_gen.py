@@ -41,8 +41,27 @@ args = parser.parse_args()
 
 ##
 # Read file
+import yaml
 with open(args.filename, 'r') as file:
-    markdown = file.read()
+    markdown = file.readlines()
+
+# Extract Markdown file metadata
+def extract_metadata(markdown):
+    while markdown[0].strip() =='':
+        markdown = markdown[1:]
+    if '---' not in markdown[0].strip():
+        return {}, ''.join(markdown)
+
+    markdown = markdown[1:]
+    for idx, line in enumerate(markdown):
+        if '---' in line.strip():
+            metadata_end = idx
+            break
+
+    metadata_text = ''.join(markdown[:metadata_end])
+    metadata = yaml.safe_load(metadata_text)
+
+    return metadata, ''.join(markdown[metadata_end+1:])
 
 # Extract BibTeX metadata
 import bibtexparser
@@ -114,7 +133,7 @@ def keyword_extraction(text: str) -> list[str]:
 
     messages = [
         {"role":"system", "content": GPT_INSTRUCTIONS},
-        {"role": "user", "content": markdown},
+        {"role": "user", "content": text},
     ]
 
     completion = client.beta.chat.completions.parse(
@@ -143,8 +162,9 @@ def keyword_extraction(text: str) -> list[str]:
 
 ##
 # Processing
+metadata, body = extract_metadata(markdown)
 
-keywords = keyword_extraction(markdown)
+keywords = keyword_extraction(body)
 
 # If keyword only mode
 if args.keyword_only:
@@ -152,10 +172,10 @@ if args.keyword_only:
         print(f"- {keyword}")
     exit()
 
-data = extract_bibtex_entries(markdown)
+data = extract_bibtex_entries(body)
 
 if args.vector_store:
-    embeddings = embedding([markdown, data["title"]])
+    embeddings = embedding([body, data["title"]])
 
     # Vector store entry
     entry = {}
@@ -167,10 +187,8 @@ if args.vector_store:
         json.dump(entry, fp)
 
 # Process metadata
-import yaml
 from datetime import datetime
 
-metadata = {}
 metadata["tags"] = ["Paper"] + keywords
 metadata["key"] = data["key"]
 metadata["title"] = data["title"]
@@ -185,5 +203,5 @@ with open(f"{args.filename}", 'w') as file:
     file.write("---\n")
     file.write(yaml.dump(metadata, default_flow_style=False))
     file.write("---\n")
-    file.write(markdown)
+    file.write(body)
 
