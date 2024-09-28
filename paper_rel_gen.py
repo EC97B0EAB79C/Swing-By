@@ -174,7 +174,7 @@ if args.keyword_only:
     exit()
 
 # Add metadata from bibtex
-if not args.ignore_bibtex:
+if args.bibtex:
     data = extract_bibtex_entries(body)
 
     metadata["key"] = data["key"]
