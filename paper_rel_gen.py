@@ -20,11 +20,12 @@ parser.add_argument(
     'filename',
     help='Markdown file to process.'
     )
-# parser.add_argument(
-#     '-i',
-#     '--ignore-bibtex',
-#     action='store_true'
-#     )
+parser.add_argument(
+    '-b',
+    '--bibtex',
+    action='store_true',
+    help='Extract metatdata from bibtex entry codeblock'
+    )
 parser.add_argument(
     '-vs',
     '--vector-store',
@@ -172,14 +173,22 @@ if args.keyword_only:
         print(f"- {keyword}")
     exit()
 
-data = extract_bibtex_entries(body)
+# Add metadata from bibtex
+if not args.ignore_bibtex:
+    data = extract_bibtex_entries(body)
+
+    metadata["key"] = data["key"]
+    metadata["title"] = data["title"]
+    metadata["author"] = data["author"]
+    metadata["year"] = int(data["year"])
+
 
 if args.vector_store:
-    embeddings = embedding([body, data["title"]])
+    embeddings = embedding([body, metadata["title"]])
 
     # Vector store entry
     entry = {}
-    entry["key"] = data["key"]
+    metadata["key"] = data["key"]
     entry["embeddings"] = {"title": embeddings[0], "contents": embeddings[1]}
     entry["keywords"] = keywords
 
@@ -190,12 +199,8 @@ if args.vector_store:
 from datetime import datetime
 
 metadata["tags"] = ["Paper"] + keywords
-metadata["key"] = data["key"]
-metadata["title"] = data["title"]
-metadata["author"] = data["author"]
 metadata["category"] = keywords[0]
-metadata["year"] = int(data["year"])
-metadata["created"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 
 # Add matadata to Markdown
