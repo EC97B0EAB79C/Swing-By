@@ -84,9 +84,26 @@ def process_workspace(workspace):
 
 ##
 # Process data
-def get_tag_ranking(file_metadata)
+def get_tag_ranking(file_metadata):
+    tag_ranking = {}
+    for key, metadata in file_metadata.items():
+        tags = metadata['tags']
 
-# TODO
+        for tag in tags:
+            tag_ranking[tag]=tag_ranking.get(tag,0) + 1
+
+    return tag_ranking
+
+def set_category(file_metadata, tag_ranking):
+    for tag, score in tag_ranking.items():
+        for key, metadata in file_metadata.items():
+            if tag not in metadata['tags']:
+                continue
+            cur_category = metadata['category']
+            file_metadata[key]['category'] = tag if score > tag_ranking[cur_category] else cur_category
+
+    return file_metadata
+
 
 ##
 # Add process data to files
@@ -95,6 +112,13 @@ def get_tag_ranking(file_metadata)
 
 
 file_metadata = process_workspace(args.workspace)
+tag_ranking = get_tag_ranking(file_metadata)
 
-for key in file_metadata.keys():
-    print(file_metadata[key]['tags'])
+for key, metadata in file_metadata.items():
+    print(f"{key}: {metadata['category']}")
+
+file_metadata = set_category(file_metadata, tag_ranking)
+
+print(f"{tag_ranking["sensitivity_analysis"]} {tag_ranking["machine_learning"]}")
+for key, metadata in file_metadata.items():
+    print(f"{key}: {metadata['category']}")
