@@ -4,8 +4,9 @@
 # Global parameters
 N = 10
 RATIO = 0.4
-WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
 DB_LOCATION = os.environ.get("PAPER_REL_DB")
+KEYWORD_WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
+DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB at '{DB_LOCATION}'? (y/N): "
 
 ##
 # Argement Parser
@@ -145,7 +146,7 @@ def keyword_extraction(text: str) -> list[str]:
         assert len(keywords) == 10
     except:
         print(f"\033[33mWARNING\033[0m: created keywords({keywords})")
-        if input(WARNING_TEXT) == 'y':
+        if input(KEYWORD_WARNING_TEXT) == 'y':
             return keywords
         print("\033[31mABORTED\033[0m")
         exit()
@@ -155,10 +156,7 @@ def keyword_extraction(text: str) -> list[str]:
 
 ##
 # DB
-
-# Load/Save DB
 import pandas
-DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB at '{DB_LOCATION}'? (y/N): "
 
 def save_db(path, df):
     try:
