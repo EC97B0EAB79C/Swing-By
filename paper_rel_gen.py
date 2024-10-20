@@ -5,7 +5,7 @@
 N = 10
 RATIO = 0.4
 WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
-VECTOR_STORE_LOCATION = "./test/vector_store.json"
+VECTOR_STORE_LOCATION = os.environ["PAPER_REL_DB"]
 
 ##
 # Argement Parser
@@ -88,38 +88,27 @@ import os
 from openai import OpenAI
 endpoint = "https://models.inference.ai.azure.com"
 token = os.environ["GITHUB_TOKEN"]
+client = OpenAI(base_url=endpoint, api_key=token)
 
 # OpenAI Embedding
-from azure.ai.inference import EmbeddingsClient
-from azure.core.credentials import AzureKeyCredential
-
-def embedding(text: list[str]) -> list[float]: 
+def embedding(text: list[str]) -> list[list[float]]: 
     embedding_model_name = "text-embedding-3-small"
-    client = EmbeddingsClient(
-        endpoint=endpoint,
-        credential=AzureKeyCredential(token)
-    )
-
-    embedding_response = client.embed(
+    embedding_response = client.embeddings.create(
         input = text,
-        model = embedding_model_name
+        model = embedding_model_name,
     )
 
     embeddings = []
     for data in embedding_response.data:
         embeddings.append(data.embedding)
-
+    
     return embeddings
 
 # OpenAI Keyword Extraction
 import json
 
 def keyword_extraction(text: str) -> list[str]:
-    chat_model_name = "gpt-4o-mini"
-    client = OpenAI(
-        base_url=endpoint,
-        api_key=token,
-    )
+    chat_model_name = "gpt-4o-mini" 
 
 # TODO Category Prompt
     GPT_INSTRUCTIONS = f"""
