@@ -31,7 +31,6 @@ args = parser.parse_args()
 ##
 # Load/Save DB
 import pandas
-import json
 
 DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB? (y/N): "
 
