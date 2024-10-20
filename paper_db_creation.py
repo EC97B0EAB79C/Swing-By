@@ -30,50 +30,37 @@ args = parser.parse_args()
 
 ##
 # Load/Save DB
+import pandas
 import json
 
 def load_db(path):    
-    db=[]
+    df=pandas.DataFrame()
     try:
-        with open(path) as f:
-            db = json.load(f)
+        df = pandas.read_hdf(path, key='df')
     except FileNotFoundError:
         pass
     except Exception as e: 
         print("Error when loading DB")
         print(e)
-        exit()
 
-    print(f"Loaded {len(db)} entries")
-    return db
+    print(f"Loaded {len(df.index)} entries")
+    return df
 
 
-def save_db(path, db):
+def save_db(path, df):
     try:
-        with open(path, 'w') as f:
-            json.dump(db, f, ensure_ascii=False)
+        df.to_hdf(path, key='df', mode='w')
     except Exception as e: 
         print("Error when saving to DB")
         print(e)
         exit()
-    print(f"Saved {len(db)} entries")
+    print(f"Saved {len(df.index)} entries")
 
 
 def update_entries(old_entries, new_entries):
-    updated_entries = old_entries
-    db_mapping = {}
-    for idx, entry in enumerate(old_entries):
-        db_mapping[entry["key"]] = idx
-
-
-    for entry in new_entries:
-        idx = db_mapping.get(entry["key"])
-        if idx:
-            updated_entries[idx].update(entry)
-        else:
-            updated_entries.append(entry)
-
-    return updated_entries
+    if old_entries.empty:
+        return new_entries
+    return old_entries.set_index('key').combine_first(new_entries.set_index('key')).reset_index()
     
 
 
@@ -174,8 +161,6 @@ def process_path(path):
 ##
 # Main processing
 old_entries = load_db(DB_LOCATION)
-new_entries = process_path(args.path)
+new_entries = pandas.DataFrame.from_dict(process_path(args.path))
 updated_entries = update_entries(old_entries, new_entries)
-
 save_db(DB_LOCATION, updated_entries)
-
