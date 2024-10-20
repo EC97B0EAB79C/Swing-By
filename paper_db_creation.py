@@ -33,17 +33,18 @@ args = parser.parse_args()
 import pandas
 import json
 
-def load_db(path):    
-    df=pandas.DataFrame()
+DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB? (y/N): "
+
+def load_db(path):
+    df = None
     try:
         df = pandas.read_hdf(path, key='df')
-    except FileNotFoundError:
-        pass
-    except Exception as e: 
-        print("Error when loading DB")
-        print(e)
+        print(f"Loaded {len(df.index)} entries")
+    except:
+        if input(DB_WARNING_TEXT) != 'y':
+            print("\033[31mABORTED\033[0m")
+            exit()
 
-    print(f"Loaded {len(df.index)} entries")
     return df
 
 
@@ -58,8 +59,13 @@ def save_db(path, df):
 
 
 def update_entries(old_entries, new_entries):
+    if type(old_entries) != pandas.DataFrame:
+        return new_entries
     if old_entries.empty:
         return new_entries
+    if new_entries.empty:
+        return old_entries
+    
     return old_entries.set_index('key').combine_first(new_entries.set_index('key')).reset_index()
     
 
