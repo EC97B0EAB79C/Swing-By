@@ -217,7 +217,7 @@ if args.bibtex:
 
 # Add entry to vector store
 if args.vector_store:
-    embeddings = embedding([body, metadata["title"]])
+    embeddings = embedding([metadata["title"], body])
 
     # Vector store entry
     entry = {}

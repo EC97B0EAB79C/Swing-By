@@ -128,14 +128,14 @@ def process_file(file):
     if not metadata.get("key", None):
         return None
 
+    embeddings = embedding([metadata["title"], body])
+
     entry = {}
     entry["key"] = metadata["key"]
     entry["title"] = metadata["title"]
     entry["category"] = metadata["category"]
     entry["year"] = metadata["year"]
     entry["tags"] = list(filter(lambda t: t not in args.metatags, metadata['tags']))
-
-    embeddings = embedding([metadata["title"], body])
     entry["embedding_title"] = embeddings[0]
     entry["embedding_body"] = embeddings[1]
 
