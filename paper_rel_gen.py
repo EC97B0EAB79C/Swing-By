@@ -4,8 +4,9 @@
 # Global parameters
 N = 10
 RATIO = 0.4
-WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
-VECTOR_STORE_LOCATION = os.environ["PAPER_REL_DB"]
+DB_LOCATION = os.environ.get("PAPER_REL_DB")
+KEYWORD_WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
+DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB at '{DB_LOCATION}'? (y/N): "
 
 ##
 # Argement Parser
@@ -39,6 +40,10 @@ parser.add_argument(
     )
 args = parser.parse_args()
 
+if args.vector_store and (not DB_LOCATION):
+    print("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
+    print("\033[31mABORTED\033[0m")
+    exit(1)
 
 ##
 # Read file
@@ -141,7 +146,7 @@ def keyword_extraction(text: str) -> list[str]:
         assert len(keywords) == 10
     except:
         print(f"\033[33mWARNING\033[0m: created keywords({keywords})")
-        if input(WARNING_TEXT) == 'y':
+        if input(KEYWORD_WARNING_TEXT) == 'y':
             return keywords
         print("\033[31mABORTED\033[0m")
         exit()
@@ -149,6 +154,36 @@ def keyword_extraction(text: str) -> list[str]:
     return keywords
 
 
+##
+# DB
+import pandas
+
+def save_db(path, df):
+    try:
+        df.to_hdf(path, key='df', mode='w')
+    except Exception as e: 
+        print("Error when saving to DB")
+        print(e)
+        exit()
+    print(f"Saved {len(df.index)} entries")
+
+def append_db(path, new_entry):
+    old_df = None
+    new_df = pandas.DataFrame.from_dict(new_entry)
+    try:
+        old_df = pandas.read_hdf(path, key='df')
+        print(f"Loaded {len(old_df.index)} entries")
+    except:
+        if input(DB_WARNING_TEXT) != 'y':
+            print("\033[31mABORTED\033[0m")
+            exit()
+        save_db(path, new_df)
+        return
+
+    save_db(
+        path,
+        old_df.set_index('key').combine_first(new_df.set_index('key')).reset_index()
+    )
 
 ##
 # Processing
@@ -162,6 +197,13 @@ if args.keyword_only:
         print(f"- {keyword}")
     exit()
 
+# Process metadata
+from datetime import datetime
+
+metadata["tags"] = ["Paper"] + keywords
+metadata["category"] = keywords[0]
+metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
 # Add metadata from bibtex
 if args.bibtex:
     data = extract_bibtex_entries(body)
@@ -171,26 +213,21 @@ if args.bibtex:
     metadata["author"] = data["author"]
     metadata["year"] = int(data["year"])
 
-
+# Add entry to vector store
 if args.vector_store:
-    embeddings = embedding([body, metadata["title"]])
+    embeddings = embedding([metadata["title"], body])
 
     # Vector store entry
     entry = {}
-    metadata["key"] = data["key"]
-    entry["embeddings"] = {"title": embeddings[0], "contents": embeddings[1]}
-    entry["keywords"] = keywords
+    entry["key"] = metadata["key"]
+    entry["title"] = metadata["title"]
+    entry["category"] = metadata["category"]
+    entry["year"] = metadata["year"]
+    entry["tags"] = keywords
+    entry["embedding_title"] = embeddings[0]
+    entry["embedding_body"] = embeddings[1]
 
-    with open(VECTOR_STORE_LOCATION, 'w') as fp:
-        json.dump(entry, fp)
-
-# Process metadata
-from datetime import datetime
-
-metadata["tags"] = ["Paper"] + keywords
-metadata["category"] = keywords[0]
-metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
+    append_db(entry)
 
 # Add matadata to Markdown
 with open(f"{args.filename}", 'w') as file:
