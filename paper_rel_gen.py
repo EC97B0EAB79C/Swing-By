@@ -266,6 +266,8 @@ metadata["category"] = keywords[0]
 
 
 # Add entry to vector store
+import numpy as np
+
 if args.vector_store:
     embed_text = [metadata["title"], body]
     if summary:
@@ -279,10 +281,10 @@ if args.vector_store:
     entry["category"] = metadata["category"]
     entry["year"] = metadata["year"]
     entry["tags"] = keywords
-    entry["embedding_title"] = embeddings[0]
-    entry["embedding_body"] = embeddings[1]
+    entry["embedding_title"] = np.array(embeddings[0])
+    entry["embedding_body"] = np.array(embeddings[1])
     if summary:
-        entry["embedding_summary"] = embeddings[2]
+        entry["embedding_summary"] = np.array(embeddings[2])
     
     # print(entry)
     append_db(DB_LOCATION, [entry])
