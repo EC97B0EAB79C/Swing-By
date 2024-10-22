@@ -31,3 +31,6 @@ options:
     ```bash
     paper_rel_gen filename
     ```
+
+## Acknowledgement
+- Thank you to arXiv for use of its open access interoperability.
