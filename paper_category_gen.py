@@ -75,8 +75,10 @@ def process_workspace(workspace):
     file_metadata = {}
     for (root, dirs, files) in os.walk(workspace):
         file_metadata.update(
-            process_files(map(lambda file: os.path.join(root, file), files))
+            process_files(
+                map(lambda file: os.path.join(root, file), files)
             )
+        )
 
     return file_metadata
 

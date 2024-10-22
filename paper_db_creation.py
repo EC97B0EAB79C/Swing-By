@@ -68,6 +68,41 @@ def update_entries(old_entries, new_entries):
     return old_entries.set_index('key').combine_first(new_entries.set_index('key')).reset_index()
     
 
+##
+# arXiv API
+import re
+import arxiv
+from difflib import SequenceMatcher
+
+ARXIV_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct
+\tQuery: {query}
+\tFetched: {fetched}
+\tDo you want to use fetched paper? (y/N):"""
+
+arxiv_client = arxiv.Client()
+
+def clean_text(text):
+    return re.sub(r"[^a-zA-Z0-9]+", ' ', text).lower()
+
+def get_summary(title, author):
+    clean_title = clean_text(title)
+    clean_author = clean_text(author[0])
+    
+    search = arxiv.Search(
+        query = f"{clean_title} AND {clean_author}",
+        max_results = 1,
+        sort_by = arxiv.SortCriterion.Relevance
+    )
+    results = arxiv_client.results(search)
+    result = next(results)
+
+    fetched = result.title
+    clean_fetched = clean_text(result.title)
+    if SequenceMatcher(None, clean_title, clean_fetched).ratio() < 0.99:
+        if input(ARXIV_WARNING_TEXT.format(query=title, fetched=fetched)) != 'y':
+            print("\033[33mSkipped\033[0m")
+            return None
+    return result.summary
 
 ##
 # OpenAI Embedding API
@@ -76,10 +111,10 @@ from openai import OpenAI
 endpoint = "https://models.inference.ai.azure.com"
 token = os.environ["GITHUB_TOKEN"]
 embedding_model_name = "text-embedding-3-small"
-client = OpenAI(base_url=endpoint, api_key=token)
+openai_client = OpenAI(base_url=endpoint, api_key=token)
 
 def embedding(text: list[str]) -> list[list[float]]: 
-    embedding_response = client.embeddings.create(
+    embedding_response = openai_client.embeddings.create(
         input = text,
         model = embedding_model_name,
     )
@@ -126,17 +161,27 @@ def process_file(file):
 
     if not metadata.get("key", None):
         return None
-
-    embeddings = embedding([metadata["title"], body])
-
+    
     entry = {}
     entry["key"] = metadata["key"]
+    entry["author"] = metadata["author"]
     entry["title"] = metadata["title"]
     entry["category"] = metadata["category"]
     entry["year"] = metadata["year"]
-    entry["tags"] = list(filter(lambda t: t not in args.metatags, metadata['tags']))
+    entry["tags"] = list(filter(lambda t: t not in args.metatags, entry['tags']))
+    
+    summary = get_summary(entry["title"], entry["author"])
+    embed_text = [entry["title"], body]
+    if summary:
+        embed_text.append(summary)
+    embeddings = embedding(embed_text)
+
     entry["embedding_title"] = embeddings[0]
     entry["embedding_body"] = embeddings[1]
+    if summary:
+        entry["embedding_summary"] = embeddings[2]
+    else:
+        entry["embedding_summary"] = None
 
     return entry
     
