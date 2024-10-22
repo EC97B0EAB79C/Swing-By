@@ -2,6 +2,8 @@
 
 ##
 # Global parameters
+import os
+
 N = 10
 RATIO = 0.4
 DB_LOCATION = os.environ.get("PAPER_REL_DB")
@@ -281,11 +283,9 @@ if args.vector_store:
     entry["embedding_body"] = embeddings[1]
     if summary:
         entry["embedding_summary"] = embeddings[2]
-    else:
-        entry["embedding_summary"] = None
     
-    append_db(entry)
-    print(entry)
+    # print(entry)
+    append_db(DB_LOCATION, [entry])
 
 # Add matadata to Markdown
 with open(f"{args.filename}", 'w') as file:
