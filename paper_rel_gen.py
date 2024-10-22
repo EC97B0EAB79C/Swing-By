@@ -174,8 +174,6 @@ Return the list in json format with key "keywords" for keyword list.
         {"role": "user", "content": text},
     ]
 
-    print(GPT_INSTRUCTIONS)
-
     completion = client.beta.chat.completions.parse(
         model = chat_model_name,
         messages = messages,
