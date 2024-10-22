@@ -88,6 +88,42 @@ def extract_bibtex_entries(markdown_text):
     return bibtex_2_dict(entry.entries[0])
 
 ##
+# Get summary
+import re
+import arxiv
+from difflib import SequenceMatcher
+
+ARXIV_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct
+\tQuery: {query}
+\tFetched: {fetched}
+\tDo you want to use fetched paper? (y/N):"""
+
+arxiv_client = arxiv.Client()
+
+def clean_text(text):
+    return re.sub(r"[^a-zA-Z0-9]+", ' ', text).lower()
+
+def get_summary(title, author):
+    clean_title = clean_text(title)
+    clean_author = clean_text(author[0])
+    
+    search = arxiv.Search(
+        query = f"{clean_title} AND {clean_author}",
+        max_results = 1,
+        sort_by = arxiv.SortCriterion.Relevance
+    )
+    results = arxiv_client.results(search)
+    result = next(results)
+
+    fetched = result.title
+    clean_fetched = clean_text(result.title)
+    if SequenceMatcher(None, clean_title, clean_fetched).ratio() < 0.99:
+        if input(ARXIV_WARNING_TEXT.format(query=title, fetched=fetched)) != 'y':
+            print("\033[33mSkipped\033[0m")
+            return None
+    return result.summary
+
+##
 # OpenAI
 import os
 from openai import OpenAI
@@ -187,21 +223,11 @@ def append_db(path, new_entry):
 
 ##
 # Processing
-metadata, body = extract_metadata(markdown)
-
-keywords = keyword_extraction(body)
-
-# If keyword only mode
-if args.keyword_only:
-    for keyword in keywords:
-        print(f"- {keyword}")
-    exit()
 
 # Process metadata
 from datetime import datetime
 
-metadata["tags"] = ["Paper"] + keywords
-metadata["category"] = keywords[0]
+metadata, body = extract_metadata(markdown)
 metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 # Add metadata from bibtex
@@ -213,9 +239,36 @@ if args.bibtex:
     metadata["author"] = data["author"]
     metadata["year"] = int(data["year"])
 
+# Get summary
+summary = get_summary(metadata["title"], metadata["author"])
+
+# Create keywords
+keyword_payload=f"""
+title: {metadata["title"]}
+summary:
+{summary}
+
+note:
+{body}
+"""
+keywords = keyword_extraction(keyword_payload)
+
+# If keyword only mode
+if args.keyword_only:
+    for keyword in keywords:
+        print(f"- {keyword}")
+    exit()
+
+metadata["tags"] = ["Paper"] + keywords
+metadata["category"] = keywords[0]
+
+
 # Add entry to vector store
 if args.vector_store:
-    embeddings = embedding([metadata["title"], body])
+    embed_text = [metadata["title"], body]
+    if summary:
+        embed_text.append(summary)
+    embeddings = embedding(embed_text)
 
     # Vector store entry
     entry = {}
@@ -226,8 +279,13 @@ if args.vector_store:
     entry["tags"] = keywords
     entry["embedding_title"] = embeddings[0]
     entry["embedding_body"] = embeddings[1]
-
+    if summary:
+        entry["embedding_summary"] = embeddings[2]
+    else:
+        entry["embedding_summary"] = None
+    
     append_db(entry)
+    print(entry)
 
 # Add matadata to Markdown
 with open(f"{args.filename}", 'w') as file:

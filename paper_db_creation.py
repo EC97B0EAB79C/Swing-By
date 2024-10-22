@@ -69,7 +69,7 @@ def update_entries(old_entries, new_entries):
     
 
 ##
-# arXiv API
+# Get summary
 import re
 import arxiv
 from difflib import SequenceMatcher
@@ -164,8 +164,8 @@ def process_file(file):
     
     entry = {}
     entry["key"] = metadata["key"]
-    entry["author"] = metadata["author"]
     entry["title"] = metadata["title"]
+    entry["author"] = metadata["author"]
     entry["category"] = metadata["category"]
     entry["year"] = metadata["year"]
     entry["tags"] = list(filter(lambda t: t not in args.metatags, entry['tags']))
