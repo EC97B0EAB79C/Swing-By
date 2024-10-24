@@ -265,13 +265,12 @@ if type(old_df) == pandas.DataFrame:
     for _, row in similarity_df[:3].iterrows():
         keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
         
-    
     similarity_df["similarity"] = similarity_df["embedding_body"].apply(lambda x: np.linalg.norm(x-embeddings[1]))
     similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
     for _, row in similarity_df[:3].iterrows():
         keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
     
-    if summary:
+    if summary and ("embedding_summary" in similarity_df.columns):
         similarity_df["similarity"] = similarity_df["embedding_summary"].apply(lambda x: np.linalg.norm(x-embeddings[2]))
         similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
         for _, row in similarity_df[:3].iterrows():
