@@ -2,6 +2,9 @@
 
 ##
 # Global parameters
+import os
+import numpy as np
+
 N = 10
 RATIO = 0.4
 DB_LOCATION = os.environ.get("PAPER_REL_DB")
@@ -88,6 +91,42 @@ def extract_bibtex_entries(markdown_text):
     return bibtex_2_dict(entry.entries[0])
 
 ##
+# Get summary
+import re
+import arxiv
+from difflib import SequenceMatcher
+
+ARXIV_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct
+\tQuery: {query}
+\tFetched: {fetched}
+\tDo you want to use fetched paper? (y/N):"""
+
+arxiv_client = arxiv.Client()
+
+def clean_text(text):
+    return re.sub(r"[^a-zA-Z0-9]+", ' ', text).lower()
+
+def get_summary(title, author):
+    clean_title = clean_text(title)
+    clean_author = clean_text(author[0])
+    
+    search = arxiv.Search(
+        query = f"{clean_title} AND {clean_author}",
+        max_results = 1,
+        sort_by = arxiv.SortCriterion.Relevance
+    )
+    results = arxiv_client.results(search)
+    result = next(results)
+
+    fetched = result.title
+    clean_fetched = clean_text(result.title)
+    if SequenceMatcher(None, clean_title, clean_fetched).ratio() < 0.99:
+        if input(ARXIV_WARNING_TEXT.format(query=title, fetched=fetched)) != 'y':
+            print("\033[33mSkipped\033[0m")
+            return None
+    return result.summary
+
+##
 # OpenAI
 import os
 from openai import OpenAI
@@ -96,7 +135,7 @@ token = os.environ["GITHUB_TOKEN"]
 client = OpenAI(base_url=endpoint, api_key=token)
 
 # OpenAI Embedding
-def embedding(text: list[str]) -> list[list[float]]: 
+def embedding(text: list[str]): 
     embedding_model_name = "text-embedding-3-small"
     embedding_response = client.embeddings.create(
         input = text,
@@ -105,26 +144,30 @@ def embedding(text: list[str]) -> list[list[float]]:
 
     embeddings = []
     for data in embedding_response.data:
-        embeddings.append(data.embedding)
+        embeddings.append(np.array(data.embedding))
     
     return embeddings
 
 # OpenAI Keyword Extraction
 import json
 
-def keyword_extraction(text: str) -> list[str]:
+def keyword_extraction(text: str, example = None) -> list[str]:
     chat_model_name = "gpt-4o-mini" 
 
-# TODO Category Prompt
     GPT_INSTRUCTIONS = f"""
-    This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
-    It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
-    The GPT will aim to provide up to {N} keywords, with 1 keyword acting as a category, {N*RATIO} general tags applicable to a broad context, and {N - 1 - N*RATIO} being more specific to the content of the note.
-    It avoids suggesting overly generic or redundant keywords unless necessary.
-    It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
-    Every tag will be lowercase.
-    Return the list in json format with key "keywords" for keyword list.
-    """
+This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
+It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
+The GPT will aim to provide up to {N} keywords, with 1 keyword acting as a category, {N*RATIO} general tags applicable to a broad context, and {N - 1 - N*RATIO} being more specific to the content of the note.
+It avoids suggesting overly generic or redundant keywords unless necessary.
+It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
+Every tag will be lowercase.
+Return the list in json format with key "keywords" for keyword list.
+"""
+
+    if example:
+        GPT_INSTRUCTIONS += "\n\nExamples:\n"
+        for e in example:
+            GPT_INSTRUCTIONS += f"{e}\n"
 
     messages = [
         {"role":"system", "content": GPT_INSTRUCTIONS},
@@ -158,50 +201,41 @@ def keyword_extraction(text: str) -> list[str]:
 # DB
 import pandas
 
-def save_db(path, df):
+old_df = None
+try:
+    old_df = pandas.read_hdf(DB_LOCATION, key='df')
+    print(f"Loaded {len(old_df.index)} entries")
+except:
+    if input(DB_WARNING_TEXT) != 'y':
+        print("\033[31mABORTED\033[0m")
+        exit()
+
+def save_db(df):
     try:
-        df.to_hdf(path, key='df', mode='w')
+        df.to_hdf(DB_LOCATION, key='df', mode='w')
     except Exception as e: 
         print("Error when saving to DB")
         print(e)
         exit()
     print(f"Saved {len(df.index)} entries")
 
-def append_db(path, new_entry):
-    old_df = None
+def append_db(new_entry):
     new_df = pandas.DataFrame.from_dict(new_entry)
-    try:
-        old_df = pandas.read_hdf(path, key='df')
-        print(f"Loaded {len(old_df.index)} entries")
-    except:
-        if input(DB_WARNING_TEXT) != 'y':
-            print("\033[31mABORTED\033[0m")
-            exit()
-        save_db(path, new_df)
+    
+    if type(old_df) != pandas.DataFrame:
+        save_db(new_df)
         return
-
     save_db(
-        path,
         old_df.set_index('key').combine_first(new_df.set_index('key')).reset_index()
     )
 
 ##
 # Processing
-metadata, body = extract_metadata(markdown)
-
-keywords = keyword_extraction(body)
-
-# If keyword only mode
-if args.keyword_only:
-    for keyword in keywords:
-        print(f"- {keyword}")
-    exit()
 
 # Process metadata
 from datetime import datetime
 
-metadata["tags"] = ["Paper"] + keywords
-metadata["category"] = keywords[0]
+metadata, body = extract_metadata(markdown)
 metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 # Add metadata from bibtex
@@ -213,21 +247,73 @@ if args.bibtex:
     metadata["author"] = data["author"]
     metadata["year"] = int(data["year"])
 
+# Get summary
+summary = get_summary(metadata["title"], metadata["author"])
+
+# Get embeddings
+embed_text = [metadata["title"], body]
+if summary:
+    embed_text.append(summary)
+embeddings = embedding(embed_text)
+
+keyword_example = set()
+if type(old_df) == pandas.DataFrame:
+    similarity_df = old_df.copy()
+
+    similarity_df["similarity"] = similarity_df["embedding_title"].apply(lambda x: np.linalg.norm(x-embeddings[0]))
+    similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
+    for _, row in similarity_df[:3].iterrows():
+        keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+        
+    similarity_df["similarity"] = similarity_df["embedding_body"].apply(lambda x: np.linalg.norm(x-embeddings[1]))
+    similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
+    for _, row in similarity_df[:3].iterrows():
+        keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+    
+    if summary and ("embedding_summary" in similarity_df.columns):
+        similarity_df["similarity"] = similarity_df["embedding_summary"].apply(lambda x: np.linalg.norm(x-embeddings[2]))
+        similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
+        for _, row in similarity_df[:3].iterrows():
+            keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+    
+    keyword_example = list(keyword_example)
+
+# Create keywords
+keyword_payload=f"""
+title: {metadata["title"]}
+summary:
+{summary}
+
+note:
+{body}
+"""
+keywords = keyword_extraction(keyword_payload, keyword_example)
+
+# If keyword only mode
+if args.keyword_only:
+    for keyword in keywords:
+        print(f"- {keyword}")
+    exit()
+
+metadata["tags"] = ["Paper"] + keywords
+metadata["category"] = keywords[0]
+
+
 # Add entry to vector store
 if args.vector_store:
-    embeddings = embedding([metadata["title"], body])
-
-    # Vector store entry
     entry = {}
     entry["key"] = metadata["key"]
     entry["title"] = metadata["title"]
     entry["category"] = metadata["category"]
     entry["year"] = metadata["year"]
     entry["tags"] = keywords
-    entry["embedding_title"] = embeddings[0]
-    entry["embedding_body"] = embeddings[1]
-
-    append_db(entry)
+    entry["embedding_title"] = np.array(embeddings[0])
+    entry["embedding_body"] = np.array(embeddings[1])
+    if summary:
+        entry["embedding_summary"] = np.array(embeddings[2])
+    
+    # print(entry)
+    append_db([entry])
 
 # Add matadata to Markdown
 with open(f"{args.filename}", 'w') as file:

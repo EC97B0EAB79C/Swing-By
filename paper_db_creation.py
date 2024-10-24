@@ -69,7 +69,7 @@ def update_entries(old_entries, new_entries):
     
 
 ##
-# arXiv API
+# Get summary
 import re
 import arxiv
 from difflib import SequenceMatcher
@@ -150,6 +150,8 @@ def extract_metadata(markdown):
 
 ##
 # Process files
+import numpy as np
+
 def process_file(file):
     print(f"Processing [{file}]:")
     try:
@@ -164,8 +166,8 @@ def process_file(file):
     
     entry = {}
     entry["key"] = metadata["key"]
-    entry["author"] = metadata["author"]
     entry["title"] = metadata["title"]
+    entry["author"] = metadata["author"]
     entry["category"] = metadata["category"]
     entry["year"] = metadata["year"]
     entry["tags"] = list(filter(lambda t: t not in args.metatags, entry['tags']))
@@ -176,12 +178,10 @@ def process_file(file):
         embed_text.append(summary)
     embeddings = embedding(embed_text)
 
-    entry["embedding_title"] = embeddings[0]
-    entry["embedding_body"] = embeddings[1]
+    entry["embedding_title"] = np.array(embeddings[0])
+    entry["embedding_body"] = np.array(embeddings[1])
     if summary:
-        entry["embedding_summary"] = embeddings[2]
-    else:
-        entry["embedding_summary"] = None
+        entry["embedding_summary"] = np.array(embeddings[2])
 
     return entry
     
