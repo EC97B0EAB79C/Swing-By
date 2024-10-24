@@ -3,6 +3,7 @@
 ##
 # Global parameters
 import os
+import logging
 import numpy as np
 
 N = 10
@@ -41,11 +42,23 @@ parser.add_argument(
     action='store_true',
     help='Only prints keywords and exits.'
     )
+parser.add_argument(
+        '--debug', 
+        action='store_true', 
+        help='Enable debug mode'
+    )
 args = parser.parse_args()
 
+level = logging.DEBUG if args.debug else logging.INFO
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+logger.setLevel(level)
+
+
+
 if args.vector_store and (not DB_LOCATION):
-    print("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
-    print("\033[31mABORTED\033[0m")
+    logging.error("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
+    logging.error("\033[31mABORTED\033[0m")
     exit(1)
 
 ##
@@ -53,6 +66,7 @@ if args.vector_store and (not DB_LOCATION):
 import yaml
 with open(args.filename, 'r') as file:
     markdown = file.readlines()
+    logger.debug(f"Loaded '{args.filename}'")
 
 # Extract Markdown file metadata
 def extract_metadata(markdown):
@@ -70,6 +84,7 @@ def extract_metadata(markdown):
     metadata_text = ''.join(markdown[:metadata_end])
     metadata = yaml.safe_load(metadata_text)
 
+    logger.debug("Extracted metadata")
     return metadata, ''.join(markdown[metadata_end+1:])
 
 # Extract BibTeX metadata
@@ -82,12 +97,15 @@ def bibtex_2_dict(bibtex):
     data["title"] = fields_dict['title'].value
     data["author"] = fields_dict['author'].value.split(' and ')
     data["year"] = fields_dict['year'].value
+
     return data
 
 def extract_bibtex_entries(markdown_text):
     pattern = r'```BibTeX(.*?)```'
     match = re.findall(pattern, markdown_text, re.DOTALL | re.IGNORECASE)
     entry = bibtexparser.parse_string(match[0])
+
+    logger.debug("Extracted BibTeX entry")
     return bibtex_2_dict(entry.entries[0])
 
 ##
@@ -115,15 +133,19 @@ def get_summary(title, author):
         max_results = 1,
         sort_by = arxiv.SortCriterion.Relevance
     )
+    logger.debug("Sent arXiv API request")
     results = arxiv_client.results(search)
+    logger.debug("Recieved arXiv API responce")
     result = next(results)
 
     fetched = result.title
+    logger.debug(f"> Fetched '{fetched}'")
     clean_fetched = clean_text(result.title)
     if SequenceMatcher(None, clean_title, clean_fetched).ratio() < 0.99:
         if input(ARXIV_WARNING_TEXT.format(query=title, fetched=fetched)) != 'y':
-            print("\033[33mSkipped\033[0m")
+            logger.info("\033[33mSkipped\033[0m summary")
             return None
+    logger.debug("Fetched summary")
     return result.summary
 
 ##
@@ -135,17 +157,22 @@ token = os.environ["GITHUB_TOKEN"]
 client = OpenAI(base_url=endpoint, api_key=token)
 
 # OpenAI Embedding
-def embedding(text: list[str]): 
+def embedding(text: list[str]):
     embedding_model_name = "text-embedding-3-small"
+
+    logger.debug("Sent OpenAI embedding API request")
     embedding_response = client.embeddings.create(
         input = text,
         model = embedding_model_name,
     )
+    logger.debug("Recieved OpenAI embedding API responce")
+    logger.debug(embedding_response.usage)
 
     embeddings = []
     for data in embedding_response.data:
         embeddings.append(np.array(data.embedding))
     
+    logger.debug("Created embedding vector")
     return embeddings
 
 # OpenAI Keyword Extraction
@@ -174,11 +201,14 @@ Return the list in json format with key "keywords" for keyword list.
         {"role": "user", "content": text},
     ]
 
+    logger.debug("Sent OpenAI completion API request")
     completion = client.beta.chat.completions.parse(
         model = chat_model_name,
         messages = messages,
         response_format = { "type": "json_object" }
     )
+    logger.debug("Recieved OpenAI completion API responce")
+    logger.debug(completion.usage)
 
     chat_response = completion.choices[0].message
     json_data = json.loads(chat_response.content)
@@ -191,9 +221,10 @@ Return the list in json format with key "keywords" for keyword list.
         print(f"\033[33mWARNING\033[0m: created keywords({keywords})")
         if input(KEYWORD_WARNING_TEXT) == 'y':
             return keywords
-        print("\033[31mABORTED\033[0m")
+        logger.fatal("\033[31mABORTED\033[0m")
         exit()
 
+    logger.debug("Finished keyword creation")
     return keywords
 
 
@@ -204,20 +235,20 @@ import pandas
 old_df = None
 try:
     old_df = pandas.read_hdf(DB_LOCATION, key='df')
-    print(f"Loaded {len(old_df.index)} entries")
+    logger.debug(f"Loaded {len(old_df.index)} entries from DB")
 except:
     if input(DB_WARNING_TEXT) != 'y':
-        print("\033[31mABORTED\033[0m")
+        logger.fatal("\033[31mABORTED\033[0m")
         exit()
 
 def save_db(df):
     try:
         df.to_hdf(DB_LOCATION, key='df', mode='w')
     except Exception as e: 
-        print("Error when saving to DB")
-        print(e)
+        logger.error("Error when saving to DB")
+        logger.error(e)
         exit()
-    print(f"Saved {len(df.index)} entries")
+    logger.info(f"Saved {len(df.index)} entries to DB")
 
 def append_db(new_entry):
     new_df = pandas.DataFrame.from_dict(new_entry)
@@ -258,24 +289,29 @@ embeddings = embedding(embed_text)
 
 keyword_example = set()
 if type(old_df) == pandas.DataFrame:
+    keys = set()
     similarity_df = old_df.copy()
 
     similarity_df["similarity"] = similarity_df["embedding_title"].apply(lambda x: np.linalg.norm(x-embeddings[0]))
     similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
     for _, row in similarity_df[:3].iterrows():
         keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
-        
+        keys.add(row["key"])
+
     similarity_df["similarity"] = similarity_df["embedding_body"].apply(lambda x: np.linalg.norm(x-embeddings[1]))
     similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
     for _, row in similarity_df[:3].iterrows():
         keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
-    
+        keys.add(row["key"])
+
     if summary and ("embedding_summary" in similarity_df.columns):
         similarity_df["similarity"] = similarity_df["embedding_summary"].apply(lambda x: np.linalg.norm(x-embeddings[2]))
         similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
         for _, row in similarity_df[:3].iterrows():
             keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
-    
+            keys.add(row["key"])
+
+    logger.debug(f"Related: {", ".join(keys) }")
     keyword_example = list(keyword_example)
 
 # Create keywords
@@ -321,4 +357,5 @@ with open(f"{args.filename}", 'w') as file:
     file.write(yaml.dump(metadata, default_flow_style=False))
     file.write("---\n")
     file.write(body)
+    logger.debug(f"Saved file '{args.filename}'")
 
