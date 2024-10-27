@@ -248,10 +248,12 @@ if args.bibtex:
     metadata["year"] = int(data["year"])
 
 # Get summary
-summary = get_summary(metadata["title"], metadata["author"])
+summary = None
+if metadata.get("title"):
+    summary = get_summary(metadata["title"], metadata["author"])
 
 # Get embeddings
-embed_text = [metadata["title"], body]
+embed_text = [metadata.get("title", "empty"), body]
 if summary:
     embed_text.append(summary)
 embeddings = embedding(embed_text)
@@ -280,7 +282,7 @@ if type(old_df) == pandas.DataFrame:
 
 # Create keywords
 keyword_payload=f"""
-title: {metadata["title"]}
+title: {metadata.get("title", args.filename)}
 summary:
 {summary}
 
