@@ -170,7 +170,7 @@ def process_file(file):
     entry["author"] = metadata["author"]
     entry["category"] = metadata["category"]
     entry["year"] = metadata["year"]
-    entry["tags"] = list(filter(lambda t: t not in args.metatags, entry['tags']))
+    entry["tags"] = list(filter(lambda t: t not in args.metatags, metadata['tags']))
     
     summary = get_summary(entry["title"], entry["author"])
     embed_text = [entry["title"], body]
