@@ -18,9 +18,9 @@ parser.add_argument(
     )
 parser.add_argument(
     '--metatags',
-    nargs="+",
+    nargs="*",
     type=str,
-    default=[]
+    default=['Paper']
     )
 
 args = parser.parse_args()
