@@ -136,7 +136,11 @@ def get_summary(title, author):
     logger.debug("Sent arXiv API request")
     results = arxiv_client.results(search)
     logger.debug("Recieved arXiv API responce")
-    result = next(results)
+    try:
+        result = next(results)
+    except:
+        logger.debug(f"> Failed to fetch summary")
+        return
 
     fetched = result.title
     logger.debug(f"> Fetched '{fetched}'")
