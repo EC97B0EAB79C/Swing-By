@@ -16,10 +16,20 @@ DB_LOCATION = "./test/test_db.h5"
 # Warning Messages
 KEYWORD_WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
 DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB at '{DB_LOCATION}'? (y/N): "
-ARXIV_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct
+QUERY_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct ({service})
 \tQuery: {query}
 \tFetched: {fetched}
 \tDo you want to use fetched paper? (y/N):"""
+REF_WARNING_TEXT = f"\033[33mWARNING\033[0m: Failed to fetch references.\n\tDo you want to proceed? (y/N): "
+def process_warning(message, abort = False):
+    user_continue = input(message) == 'y'
+
+    if abort and not user_continue:
+        logger.fatal("\033[31mABORTED\033[0m")
+        exit()
+    
+    return user_continue
+        
 
 ##
 # Argement Parser
@@ -88,9 +98,7 @@ def load_db():
         ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
         logger.debug(f"Loaded {len(paper_db.index)} entries from DB")
     except:
-        if input(DB_WARNING_TEXT) != 'y':
-            logger.fatal("\033[31mABORTED\033[0m")
-            exit()
+        process_warning(DB_WARNING_TEXT, abort=True)
 
 def save_db():
     logger.debug("Saving DB")
@@ -159,7 +167,7 @@ def extract_bibtex(body: str):
         }
     except:
         logger.debug("> No BibTeX entry found")
-        return None
+        return {}
 
 
 ##
@@ -185,25 +193,88 @@ def query_arxiv(title, author):
         result = next(results)
     except:
         logger.debug(f"> Failed to fetch from arXiv: {title}")
-        return None, None
+        return "", None
 
     fetched = result.title
     if not same_text(title, fetched):
-        if input(ARXIV_WARNING_TEXT.format(query=title, fetched=fetched)) != 'y':
+        if not process_warning(
+            QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
+        ):
             logger.info("\033[33mSkipped\033[0m summary")
-            return None, None
+            return "", None
         
-    return result.summary, result.doi
-
+    return result.summary, result.doi, result.entry_id
 
 
 ##
+# Get data from Crossref
+from crossref_commons.iteration import iterate_publications_as_json
+from crossref_commons.retrieval import get_publication_as_json
+
+def query_crossref_title(title, author=None):
+    logger.debug(f"> Query: {title}")
+    query = {"query.title": clean_text(title)}
+    if author:
+        query["query.author"] = author.split(',')[0]
+    try:
+        result = next(iterate_publications_as_json(max_results=1,queries=query))
+        fetched = result["title"][0]
+    except:
+        logger.error("> Failed to query Crossref")
+        return None, None
+    
+    if not same_text(title, fetched):
+        if not process_warning(
+            QUERY_WARNING_TEXT.format(service = "Crossref", query=title, fetched=fetched)
+        ):
+            logger.info("\033[33mSkipped\033[0m reference")
+            return None, None
+        
+    return result.get("DOI"), result.get("reference")
+    
+def query_crossref_doi(doi):
+    logger.debug(f"?> Query: {doi}")
+    try:
+        result = get_publication_as_json(doi)
+        return result.get("reference")
+    except:
+        logger.error("> Failed to query Crossref")
+        return None
+
+def get_doi(title, author):
+    if not title:
+        return None
+    doi, _ = query_crossref_title(title, author)
+    return doi
+
+def query_crossref(title, author, doi=None):
+    logger.debug("Getting data from Crossref")
+    doi, ref = (doi, ref) if doi else query_crossref_title(title, author)
+    if not doi:
+        return None, None
+
+    ref = ref or query_crossref_doi(doi)
+    if not ref:
+        return doi, None
+
+    ref_doi = []
+    for r in ref:
+        if r.get("DOI"):
+            ref_doi.append(r.get("DOI"))
+        else:
+            doi = get_doi(r.get("article-title"), r.get("author"))
+            ref_doi.append(doi)
+
+    return doi, [i for i in ref_doi if i is not None]
+
+##
 # Test Code
-load_db()
+# load_db()
 markdown = read_file(args.filename)
 metadata_yaml, body = extract_yaml(markdown)
 metadata_bibtex = extract_bibtex(body)
 metadata = metadata_yaml | metadata_bibtex
-summary, doi = query_arxiv(metadata["title"], metadata["author"][0])
-print(summary)
-print(doi)
+summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
+doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
+if not ref_doi:
+    process_warning(REF_WARNING_TEXT, abort = True)
