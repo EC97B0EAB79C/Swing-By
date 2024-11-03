@@ -26,11 +26,9 @@ QUERY_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not corre
 REF_WARNING_TEXT = f"\033[33mWARNING\033[0m: Failed to fetch references.\n\tDo you want to proceed? (y/N): "
 def process_warning(message, abort = False):
     user_continue = input(message) == 'y'
-
     if abort and not user_continue:
         logger.fatal("\033[31mABORTED\033[0m")
-        exit()
-    
+        abort()
     return user_continue
         
 
@@ -50,6 +48,12 @@ parser.add_argument(
     '--keyword-only',
     action='store_true',
     help='Only prints keywords without updating DB or file.'
+    )
+parser.add_argument(
+    '--article',
+    '-a',
+    action='store_true',
+    help='Query arXiv and Crossref for article.'
     )
 parser.add_argument(
     '--debug', 
@@ -166,7 +170,7 @@ def extract_bibtex(body: str):
             'bibtex_key': entry.key,
             'title': fields_dict['title'].value,
             'author': fields_dict['author'].value.split(' and '),
-            'year' : fields_dict['year'].value
+            'year' : int(fields_dict['year'].value)
         }
     except:
         logger.debug("> No BibTeX entry found")
@@ -310,7 +314,6 @@ It will list the tags using underscores instead of spaces, ordered from the most
 Every tag will be lowercase.
 Return the list in json format with key "keywords" for keyword list.
 """
-    
     if example:
         GPT_INSTRUCTIONS += "\n\nExamples:\n"
         for e in example:
@@ -347,16 +350,94 @@ Return the list in json format with key "keywords" for keyword list.
     return keywords
 
 
+##
+# Data processing
+from datetime import datetime
+def create_embedding(text:dict):
+    logger.debug("Creating embeddings")
+    text = {k: v for k, v in text.items() if v is not None}
+    payload = list(text.values())
+    embeddings = embedding(payload)
+
+    return {f"embedding_{key}": embedding for key, embedding in zip(text.keys(), embeddings)}
+
+
+def get_keyword_example(embeddings):
+    logger.debug("Getting keyword examples")
+    keys = set()
+    keyword_example = set()
+    similarity_df = paper_db.copy()
+    
+    for ent in ["embedding_title", "embedding_summary", "embedding_body"]:
+        emb = embeddings.get(ent)
+        if not emb:
+            continue
+        similarity_df["sim"] = similarity_df[ent].apply(lambda x: np.linalg.norm(x-emb))
+        similarity_df = similarity_df.sort_values(by='sim', ascending=False)
+        for _, row in similarity_df[:3].iterrows():
+            keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+            keys.add(row["key"])
+
+
+    logger.debug(f"Related: {", ".join(keys) }")
+    return list(keyword_example)
+
+
+def create_keywords(title, summary, body, keyword_example):
+    logger.debug("Creating keywords")
+    keyword_payload = f"title: {title}\n"
+    keyword_payload += f"summary:\n{summary}\n\n" if summary else ""
+    keyword_payload += f"body:\n{body}"
+
+    return keyword_extraction(keyword_payload, keyword_example)
+    
+
+def organize_db_entry(doi, arxiv_id, metadata, embeddings):
+    logger.debug("Creating DB entry")
+    entry = {}
+    entry['doi'] = doi
+    entry['arxiv_id'] = arxiv_id
+    entry["title"] = metadata["title"]
+    entry["author"] = metadata["author"]
+    entry["year"] = metadata["year"]
+    entry["category"] = metadata["category"]
+    entry["tags"] = metadata["keywords"]
+    entry["embedding_title"] = embedding.get("title")
+    entry["embedding_body"] = embedding.get("body")
+    entry["embedding_summary"] = embedding.get("summary")
+    
+    return entry
+
+def organize_md_metadata(metadata):
+    logger.debug("Creating MD metadata")
+    md_metadata = {}
+    md_metadata["title"] = metadata["title"]
+    md_metadata["author"] = metadata["author"]
+    md_metadata["year"] = metadata["year"]
+    md_metadata["category"] = metadata["category"]
+    md_metadata["tags"] = metadata["keywords"]
+    md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    return md_metadata
 
 ##
 # Test Code
 # load_db()
+
+# Process input file
 markdown = read_file(args.filename)
 metadata_yaml, body = extract_yaml(markdown)
 metadata_bibtex = extract_bibtex(body)
 metadata = metadata_yaml | metadata_bibtex
-summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
-doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
-if not ref_doi:
-    process_warning(REF_WARNING_TEXT, abort = True)
+
+# Get summary
+summary = None
+if args.article:
+    summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
+
+# Get references
+if args.article:
+    doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
+    if not ref_doi:
+        process_warning(REF_WARNING_TEXT, abort = True)
 
