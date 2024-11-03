@@ -200,7 +200,7 @@ def query_arxiv(title, author):
         result = next(results)
     except:
         logger.debug(f"> Failed to fetch from arXiv: {title}")
-        return "", None
+        return None, None, None,
 
     fetched = result.title
     if not same_text(title, fetched):
@@ -208,7 +208,7 @@ def query_arxiv(title, author):
             QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
         ):
             logger.info("\033[33mSkipped\033[0m summary")
-            return "", None
+            return None, None, None
         
     return result.summary, result.doi, result.entry_id
 
@@ -341,7 +341,7 @@ Return the list in json format with key "keywords" for keyword list.
         assert len(keywords) == N
     except:
         if not process_warning(
-            KEYWORD_WARNING_TEXT.format(N, keywords), 
+            KEYWORD_WARNING_TEXT.format(count = N, keywords = keywords), 
             abort=True
             ):
             logger.fatal("\033[31mABORTED\033[0m")
@@ -361,7 +361,7 @@ def create_embedding(text:dict):
 
     return {f"embedding_{key}": embedding for key, embedding in zip(text.keys(), embeddings)}
 
-
+#TODO: Test when data is in DB
 def get_keyword_example(embeddings):
     logger.debug("Getting keyword examples")
     keys = set()
@@ -435,9 +435,31 @@ summary = None
 if args.article:
     summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
 
+# Create embeddings
+embeddings = create_embedding(
+    {
+        "title": metadata["title"],
+        "summary": summary,
+        "body" : body
+    }
+)
+
+# Create keywords
+keyword_example = None
+if type(paper_db) == pandas.DataFrame:
+    keyword_example = get_keyword_example(embeddings)
+keywords = create_keywords(metadata["title"], summary, body, keyword_example)
+metadata["tags"] = ["Paper"] + keywords
+metadata["category"] = keywords[0]
+
+# If keyword only mode
+if args.keyword_only:
+    for keyword in keywords:
+        print(f"- {keyword}")
+    exit()
+
 # Get references
 if args.article:
     doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
     if not ref_doi:
         process_warning(REF_WARNING_TEXT, abort = True)
-
