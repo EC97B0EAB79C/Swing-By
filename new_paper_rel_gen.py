@@ -20,7 +20,6 @@ DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you wan
 
 ##
 # Argement Parser
-import re
 import argparse
 
 parser = argparse.ArgumentParser(
@@ -44,7 +43,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 # Check if global variabble is set for DB
-if args.vector_store and (not DB_LOCATION):
+if (not args.keyword_only) and (not DB_LOCATION):
     logging.error("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
     logging.error("\033[31mABORTED\033[0m")
     exit(1)
@@ -61,15 +60,15 @@ logger.setLevel(level)
 ##
 # DB related
 # Entries: 
-# - paper: title, author, year, doi, keywords, filename, 
+# - paper: title, author, year, bibtex_key, doi, keywords, filename, 
 #       title_embedding, summary_embedding, body_embedding
 # - ref: doi, referenced_at
 import pandas
 
-# Load existing DB
 paper_db = None
 ref_db = None
 def load_db():
+    logger.debug("Loading DB")
     try:
         paper_db = pandas.read_hdf(DB_LOCATION, key='paper')
         ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
@@ -79,8 +78,8 @@ def load_db():
             logger.fatal("\033[31mABORTED\033[0m")
             exit()
 
-# Save DB
 def save_db():
+    logger.debug("Saving DB")
     try:
         paper_db.to_hdf(DB_LOCATION, key='paper', mode='w')
         ref_db.to_hdf(DB_LOCATION, key='ref', mode='w')
@@ -108,10 +107,52 @@ def write_file(path, data):
 ##
 # Process file
 import yaml
+import re
 import bibtexparser
 
-def extract_yaml(markdown):
-    pass
+def extract_yaml(markdown: list[str]):
+    logger.debug("Extracting yaml metadata")
+    while markdown[0].strip() =='':
+        markdown = markdown[1:]
+    if '---' not in markdown[0].strip():
+        return {}, ''.join(markdown)
 
-def extract_bibtex(body):
-    pass
+    markdown = markdown[1:]
+    for idx, line in enumerate(markdown):
+        if '---' in line.strip():
+            yaml_end = idx
+            break
+
+    yaml_text = ''.join(markdown[:yaml_end])
+    metadata = yaml.safe_load(yaml_text)
+
+    return metadata, ''.join(markdown[yaml_end+1:])
+
+def extract_bibtex(body: str):
+    logger.debug("Extracting BibTeX metadata")
+    pattern = r'```BibTeX(.*?)```'
+    match = re.findall(pattern, body, re.DOTALL | re.IGNORECASE)
+
+    try:
+        entry = bibtexparser.parse_string(match[0]).entries[0]
+        fields_dict = entry.fields_dict
+
+        return {
+            'bibtex_key': entry.key,
+            'title': fields_dict['title'].value,
+            'author': fields_dict['author'].value.split(' and '),
+            'year' : fields_dict['year'].value
+        }
+    except:
+        logger.debug("> No BibTeX entry found")
+        return None
+
+
+##
+# Test Code
+load_db()
+markdown = read_file(args.filename)
+metadata_yaml, body = extract_yaml(markdown)
+metadata_bibtex = extract_bibtex(body)
+metadata = metadata_yaml | metadata_bibtex
+print(metadata)
