@@ -9,7 +9,9 @@ import logging
 # Global Parameters
 N = 10
 RATIO = 0.4
-DB_LOCATION = os.environ.get("PAPER_REL_DB")
+DB_LOCATION = "./test/test_db.h5"
+# DB_LOCATION = os.environ.get("PAPER_REL_DB")
+
 
 # Warning Messages
 KEYWORD_WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
@@ -61,10 +63,10 @@ logger.setLevel(level)
 # Entries: 
 # - paper: title, author, year, doi, keywords, filename, 
 #       title_embedding, summary_embedding, body_embedding
-# - ref: 
+# - ref: doi, referenced_at
 import pandas
 
-# load existing DB
+# Load existing DB
 paper_db = None
 ref_db = None
 def load_db():
@@ -87,3 +89,29 @@ def save_db():
         logger.error(e)
         exit()
     logger.info(f"Saved {len(paper_db.index)} entries to DB")
+
+
+##
+# File read/write
+def read_file(path):
+    logger.debug(f"Reading file: {path}")
+    with open(path, 'r') as file:
+        markdown = file.readlines()
+    return markdown
+
+def write_file(path, data):
+    logger.debug(f"Writing file: {path}")
+    with open(path, 'w') as file:
+        file.write(data)
+
+
+##
+# Process file
+import yaml
+import bibtexparser
+
+def extract_yaml(markdown):
+    pass
+
+def extract_bibtex(body):
+    pass
