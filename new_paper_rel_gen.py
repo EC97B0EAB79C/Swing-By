@@ -11,10 +11,13 @@ N = 10
 RATIO = 0.4
 DB_LOCATION = "./test/test_db.h5"
 # DB_LOCATION = os.environ.get("PAPER_REL_DB")
+TOKEN = os.environ["GITHUB_TOKEN"]
 
 
 # Warning Messages
-KEYWORD_WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
+KEYWORD_WARNING_TEXT = """\033[33mWARNING\033[0m: There is error in number of keywords.
+\tCreated ({count}): {keywords}
+\tDo you want to proceed? (y/N): """
 DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB at '{DB_LOCATION}'? (y/N): "
 QUERY_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct ({service})
 \tQuery: {query}
@@ -267,6 +270,84 @@ def query_crossref(title, author, doi=None):
 
     return doi, [i for i in ref_doi if i is not None]
 
+
+##
+# OpenAI API
+from openai import OpenAI
+import numpy as np
+import json
+EMBEDDING_MODEL = "text-embedding-3-small"
+CHAT_MODEL = chat_model_name = "gpt-4o"
+
+endpoint = "https://models.inference.ai.azure.com"
+client = OpenAI(base_url=endpoint, api_key=TOKEN)
+
+def embedding(text: list[str]):
+    logger.debug("Embedding texts")
+    logger.debug("> Sending OpenAI embedding API request")
+    embedding_response = client.embeddings.create(
+        input = text,
+        model = EMBEDDING_MODEL,
+    )
+    logger.debug("> Recieved OpenAI embedding API responce")
+    logger.debug(embedding_response.usage)
+
+    embeddings = []
+    for data in embedding_response.data:
+        embeddings.append(np.array(data.embedding))
+    
+    logger.debug("Created embedding vector")
+    return embeddings
+
+def keyword_extraction(text: str, example = None) -> list[str]:
+    logger.debug("Creating keywords")
+    GPT_INSTRUCTIONS = f"""
+This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
+It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
+The GPT will aim to provide up to {N} keywords, with 1 keyword acting as a category, {N*RATIO} general tags applicable to a broad context, and {N - 1 - N*RATIO} being more specific to the content of the note.
+It avoids suggesting overly generic or redundant keywords unless necessary.
+It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
+Every tag will be lowercase.
+Return the list in json format with key "keywords" for keyword list.
+"""
+    
+    if example:
+        GPT_INSTRUCTIONS += "\n\nExamples:\n"
+        for e in example:
+            GPT_INSTRUCTIONS += f"{e}\n"
+    
+    messages = [
+        {"role":"system", "content": GPT_INSTRUCTIONS},
+        {"role": "user", "content": text},
+    ]
+    logger.debug("> Sending OpenAI completion API request")
+    completion = client.beta.chat.completions.parse(
+        model = chat_model_name,
+        messages = messages,
+        response_format = { "type": "json_object" }
+    )
+    logger.debug("Recieved OpenAI completion API responce")
+    logger.debug(completion.usage)
+
+    chat_response = completion.choices[0].message
+    json_data = json.loads(chat_response.content)
+
+    keywords = json_data["keywords"]
+
+    try:
+        assert len(keywords) == N
+    except:
+        if not process_warning(
+            KEYWORD_WARNING_TEXT.format(N, keywords), 
+            abort=True
+            ):
+            logger.fatal("\033[31mABORTED\033[0m")
+            exit()
+
+    return keywords
+
+
+
 ##
 # Test Code
 # load_db()
@@ -278,3 +359,4 @@ summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
 doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
 if not ref_doi:
     process_warning(REF_WARNING_TEXT, abort = True)
+
