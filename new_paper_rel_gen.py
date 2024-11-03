@@ -16,7 +16,10 @@ DB_LOCATION = "./test/test_db.h5"
 # Warning Messages
 KEYWORD_WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
 DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB at '{DB_LOCATION}'? (y/N): "
-
+ARXIV_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct
+\tQuery: {query}
+\tFetched: {fetched}
+\tDo you want to use fetched paper? (y/N):"""
 
 ##
 # Argement Parser
@@ -56,6 +59,17 @@ logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(level)
 
+
+##
+# Utils
+def clean_text(text):
+    return re.sub(r"[^a-zA-Z0-9]+", ' ', text).lower()
+
+from difflib import SequenceMatcher
+def same_text(text1, text2):
+    clean_text1 = clean_text(text1)
+    clean_text2 = clean_text(text2)
+    return SequenceMatcher(None, clean_text1, clean_text2).ratio() > 0.99
 
 ##
 # DB related
@@ -149,10 +163,47 @@ def extract_bibtex(body: str):
 
 
 ##
+# Get data from arxiv
+import arxiv
+
+arxiv_client = arxiv.Client()
+
+def query_arxiv(title, author):
+    logger.debug("Getting data from arXiv")
+    clean_title = clean_text(title)
+    clean_author = clean_text(author)
+    
+    search = arxiv.Search(
+        query = f"{clean_title} AND {clean_author}",
+        max_results = 1,
+        sort_by = arxiv.SortCriterion.Relevance
+    )
+    logger.debug("> Sent arXiv API request")
+    results = arxiv_client.results(search)
+    logger.debug("> Recieved arXiv API responce")
+    try:
+        result = next(results)
+    except:
+        logger.debug(f"> Failed to fetch from arXiv: {title}")
+        return None, None
+
+    fetched = result.title
+    if not same_text(title, fetched):
+        if input(ARXIV_WARNING_TEXT.format(query=title, fetched=fetched)) != 'y':
+            logger.info("\033[33mSkipped\033[0m summary")
+            return None, None
+        
+    return result.summary, result.doi
+
+
+
+##
 # Test Code
 load_db()
 markdown = read_file(args.filename)
 metadata_yaml, body = extract_yaml(markdown)
 metadata_bibtex = extract_bibtex(body)
 metadata = metadata_yaml | metadata_bibtex
-print(metadata)
+summary, doi = query_arxiv(metadata["title"], metadata["author"][0])
+print(summary)
+print(doi)
