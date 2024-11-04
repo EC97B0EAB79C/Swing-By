@@ -3,3 +3,4 @@ bibtexparser==2.0.0b7
 pyyaml
 arxiv
 pandas
+crossref-commons

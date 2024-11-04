@@ -124,6 +124,7 @@ def save_db():
 def append_entry(entry):
     global paper_db, ref_db
     new_df = pandas.DataFrame.from_dict([entry])
+    #TODO Bug Fix
     if type(paper_db) != pandas.DataFrame:
         paper_db = new_df
         return
@@ -373,6 +374,7 @@ def create_embedding(text:dict):
 
     return {f"embedding_{key}": embedding for key, embedding in zip(text.keys(), embeddings)}
 
+#TODO: Test when data is in DB
 def get_keyword_example(embeddings):
     logger.debug("Getting keyword examples")
     keys = set()
@@ -495,3 +497,8 @@ new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
 new_entry["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
 append_entry(new_entry)
 save_db()
+print(paper_db[["key", "doi", "arxiv_id"]])
+print(paper_db[["key", "keywords"]])
+print(paper_db[["key", "embedding_title"]])
+print(paper_db[["key", "embedding_body"]])
+print(paper_db[["key", "embedding_summary"]])
