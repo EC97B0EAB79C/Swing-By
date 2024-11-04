@@ -28,7 +28,7 @@ def process_warning(message, abort = False):
     user_continue = input(message) == 'y'
     if abort and not user_continue:
         logger.fatal("\033[31mABORTED\033[0m")
-        abort()
+        exit(1)
     return user_continue
         
 
@@ -97,27 +97,38 @@ def same_text(text1, text2):
 import pandas
 
 paper_db = None
-ref_db = None
+ref_db = pandas.DataFrame()
 def load_db():
+    global paper_db, ref_db
     logger.debug("Loading DB")
     try:
         paper_db = pandas.read_hdf(DB_LOCATION, key='paper')
-        ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
+        # ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
         logger.debug(f"Loaded {len(paper_db.index)} entries from DB")
-    except:
+    except Exception as e:
+        logger.error(e)
         process_warning(DB_WARNING_TEXT, abort=True)
 
 def save_db():
+    global paper_db, ref_db
     logger.debug("Saving DB")
     try:
         paper_db.to_hdf(DB_LOCATION, key='paper', mode='w')
-        ref_db.to_hdf(DB_LOCATION, key='ref', mode='w')
+        # ref_db.to_hdf(DB_LOCATION, key='ref', mode='w')
     except Exception as e: 
         logger.error("Error when saving to DB")
         logger.error(e)
         exit()
     logger.info(f"Saved {len(paper_db.index)} entries to DB")
 
+def append_entry(entry):
+    global paper_db, ref_db
+    new_df = pandas.DataFrame.from_dict([entry])
+    #TODO Bug Fix
+    if type(paper_db) != pandas.DataFrame:
+        paper_db = new_df
+        return
+    paper_db = paper_db.set_index('key').combine_first(new_df.set_index('key')).reset_index()
 
 ##
 # File read/write
@@ -218,7 +229,7 @@ def query_arxiv(title, author):
 from crossref_commons.iteration import iterate_publications_as_json
 from crossref_commons.retrieval import get_publication_as_json
 
-def query_crossref_title(title, author=None):
+def query_crossref_title(title, author=None, check=False):
     logger.debug(f"> Query: {title}")
     query = {"query.title": clean_text(title)}
     if author:
@@ -231,6 +242,9 @@ def query_crossref_title(title, author=None):
         return None, None
     
     if not same_text(title, fetched):
+        if not check:
+            logger.info("\033[33mSkipped\033[0m reference DOI")
+            return None, None
         if not process_warning(
             QUERY_WARNING_TEXT.format(service = "Crossref", query=title, fetched=fetched)
         ):
@@ -240,7 +254,7 @@ def query_crossref_title(title, author=None):
     return result.get("DOI"), result.get("reference")
     
 def query_crossref_doi(doi):
-    logger.debug(f"?> Query: {doi}")
+    logger.debug(f"> Query: {doi}")
     try:
         result = get_publication_as_json(doi)
         return result.get("reference")
@@ -256,7 +270,7 @@ def get_doi(title, author):
 
 def query_crossref(title, author, doi=None):
     logger.debug("Getting data from Crossref")
-    doi, ref = (doi, ref) if doi else query_crossref_title(title, author)
+    doi, ref = (doi, ref) if doi else query_crossref_title(title, author, True)
     if not doi:
         return None, None
 
@@ -269,8 +283,7 @@ def query_crossref(title, author, doi=None):
         if r.get("DOI"):
             ref_doi.append(r.get("DOI"))
         else:
-            doi = get_doi(r.get("article-title"), r.get("author"))
-            ref_doi.append(doi)
+            ref_doi.append(get_doi(r.get("article-title"), r.get("author")))
 
     return doi, [i for i in ref_doi if i is not None]
 
@@ -281,7 +294,7 @@ from openai import OpenAI
 import numpy as np
 import json
 EMBEDDING_MODEL = "text-embedding-3-small"
-CHAT_MODEL = chat_model_name = "gpt-4o"
+CHAT_MODEL = chat_model_name = "gpt-4o-mini"
 
 endpoint = "https://models.inference.ai.azure.com"
 client = OpenAI(base_url=endpoint, api_key=TOKEN)
@@ -370,12 +383,12 @@ def get_keyword_example(embeddings):
     
     for ent in ["embedding_title", "embedding_summary", "embedding_body"]:
         emb = embeddings.get(ent)
-        if not emb:
+        if emb is None:
             continue
         similarity_df["sim"] = similarity_df[ent].apply(lambda x: np.linalg.norm(x-emb))
         similarity_df = similarity_df.sort_values(by='sim', ascending=False)
         for _, row in similarity_df[:3].iterrows():
-            keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+            keyword_example.add(f"'{row["title"]}': {", ".join(row["keywords"])}")
             keys.add(row["key"])
 
 
@@ -401,10 +414,10 @@ def organize_db_entry(doi, arxiv_id, metadata, embeddings):
     entry["author"] = metadata["author"]
     entry["year"] = metadata["year"]
     entry["category"] = metadata["category"]
-    entry["tags"] = metadata["keywords"]
-    entry["embedding_title"] = embedding.get("title")
-    entry["embedding_body"] = embedding.get("body")
-    entry["embedding_summary"] = embedding.get("summary")
+    entry["keywords"] = metadata["keywords"]
+    entry["embedding_title"] = embeddings.get("embedding_title", np.nan)
+    entry["embedding_body"] = embeddings.get("embedding_body", np.nan)
+    entry["embedding_summary"] = embeddings.get("embedding_summary", np.nan)
     
     return entry
 
@@ -415,14 +428,21 @@ def organize_md_metadata(metadata):
     md_metadata["author"] = metadata["author"]
     md_metadata["year"] = metadata["year"]
     md_metadata["category"] = metadata["category"]
-    md_metadata["tags"] = metadata["keywords"]
+    md_metadata["tags"] = metadata["tags"]
     md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     return md_metadata
 
+def create_md_content(md_metadata, body):
+    return f"""---
+{yaml.dump(metadata, default_flow_style=False)}
+---
+{body}"""
+
+
 ##
 # Test Code
-# load_db()
+load_db()
 
 # Process input file
 markdown = read_file(args.filename)
@@ -432,8 +452,16 @@ metadata = metadata_yaml | metadata_bibtex
 
 # Get summary
 summary = None
+id_arxiv = None
 if args.article:
     summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
+
+# Get references
+ref_doi = None
+if args.article:
+    doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
+    if not ref_doi:
+        process_warning(REF_WARNING_TEXT, abort = True)
 
 # Create embeddings
 embeddings = create_embedding(
@@ -449,6 +477,7 @@ keyword_example = None
 if type(paper_db) == pandas.DataFrame:
     keyword_example = get_keyword_example(embeddings)
 keywords = create_keywords(metadata["title"], summary, body, keyword_example)
+metadata["keywords"] = keywords
 metadata["tags"] = ["Paper"] + keywords
 metadata["category"] = keywords[0]
 
@@ -458,8 +487,18 @@ if args.keyword_only:
         print(f"- {keyword}")
     exit()
 
-# Get references
-if args.article:
-    doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
-    if not ref_doi:
-        process_warning(REF_WARNING_TEXT, abort = True)
+# Write MD file
+md_metadata = organize_md_metadata(metadata)
+md_content = create_md_content(md_metadata, body)
+write_file(args.filename, md_content)
+
+# Add entry to DB
+new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
+new_entry["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
+append_entry(new_entry)
+save_db()
+print(paper_db[["key", "doi", "arxiv_id"]])
+print(paper_db[["key", "keywords"]])
+print(paper_db[["key", "embedding_title"]])
+print(paper_db[["key", "embedding_body"]])
+print(paper_db[["key", "embedding_summary"]])
