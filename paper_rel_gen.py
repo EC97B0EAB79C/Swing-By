@@ -268,11 +268,13 @@ def get_doi(title, author):
 
 def query_crossref(title, author, doi=None):
     logger.debug("Getting data from Crossref")
-    doi, ref = (doi, ref) if doi else query_crossref_title(title, author, True)
-    if not doi:
-        return None, None
+    result = query_crossref_title(title, author, True)
 
-    ref = ref or query_crossref_doi(doi)
+    doi = doi or result[0]
+    if doi is None:
+        return None, None
+    
+    ref = result[1] or query_crossref_doi(doi)
     if not ref:
         return doi, None
 
@@ -405,6 +407,7 @@ def create_keywords(title, summary, body, keyword_example):
 def organize_db_entry(doi, arxiv_id, metadata, embeddings):
     logger.debug("Creating DB entry")
     entry = {}
+    entry['key'] = metadata["key"]
     entry['doi'] = doi
     entry['arxiv_id'] = arxiv_id
     entry["title"] = metadata["title"]
@@ -421,19 +424,20 @@ def organize_db_entry(doi, arxiv_id, metadata, embeddings):
 def organize_md_metadata(metadata):
     logger.debug("Creating MD metadata")
     md_metadata = {}
+    md_metadata["key"] = metadata["key"]
     md_metadata["title"] = metadata["title"]
     md_metadata["author"] = metadata["author"]
     md_metadata["year"] = metadata["year"]
     md_metadata["category"] = metadata["category"]
     md_metadata["tags"] = metadata["tags"]
     md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    md_metadata["created"] = str(metadata["created"] or md_metadata["updated"])
     
     return md_metadata
 
 def create_md_content(md_metadata, body):
     return f"""---
-{yaml.dump(metadata, default_flow_style=False)}
----
+{yaml.dump(md_metadata, default_flow_style=False)}---
 {body}"""
 
 
@@ -446,6 +450,7 @@ markdown = read_file(args.filename)
 metadata_yaml, body = extract_yaml(markdown)
 metadata_bibtex = extract_bibtex(body)
 metadata = metadata_yaml | metadata_bibtex
+metadata["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
 
 # Get summary
 summary = None
@@ -491,6 +496,5 @@ write_file(args.filename, md_content)
 
 # Add entry to DB
 new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
-new_entry["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
 append_entry(new_entry)
 save_db()
