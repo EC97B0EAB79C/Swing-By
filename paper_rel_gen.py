@@ -1,39 +1,20 @@
 #!/usr/bin/env python
 
-
 ##
 # Global parameters
 import os
 import logging
+import numpy as np
 
-# Global Parameters
 N = 10
 RATIO = 0.4
-DB_LOCATION = "./test/test_db.h5"
-# DB_LOCATION = os.environ.get("PAPER_REL_DB")
-TOKEN = os.environ["GITHUB_TOKEN"]
-
-
-# Warning Messages
-KEYWORD_WARNING_TEXT = """\033[33mWARNING\033[0m: There is error in number of keywords.
-\tCreated ({count}): {keywords}
-\tDo you want to proceed? (y/N): """
+DB_LOCATION = os.environ.get("PAPER_REL_DB")
+KEYWORD_WARNING_TEXT = f"\033[33mWARNING\033[0m: There is error in number of keywords.\n\tDo you want to proceed? (y/N): "
 DB_WARNING_TEXT = f"\033[33mWARNING\033[0m: Error when loading DB.\n\tDo you want to create new DB at '{DB_LOCATION}'? (y/N): "
-QUERY_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct ({service})
-\tQuery: {query}
-\tFetched: {fetched}
-\tDo you want to use fetched paper? (y/N):"""
-REF_WARNING_TEXT = f"\033[33mWARNING\033[0m: Failed to fetch references.\n\tDo you want to proceed? (y/N): "
-def process_warning(message, abort = False):
-    user_continue = input(message) == 'y'
-    if abort and not user_continue:
-        logger.fatal("\033[31mABORTED\033[0m")
-        exit(1)
-    return user_continue
-        
 
 ##
 # Argement Parser
+import re
 import argparse
 
 parser = argparse.ArgumentParser(
@@ -45,112 +26,50 @@ parser.add_argument(
     help='Markdown file to process.'
     )
 parser.add_argument(
+    '-b',
+    '--bibtex',
+    action='store_true',
+    help='Extract metatdata from bibtex entry codeblock'
+    )
+parser.add_argument(
+    '-vs',
+    '--vector-store',
+    action='store_true',
+    help='Creates embedding vector of the text.'
+    )
+parser.add_argument(
     '--keyword-only',
     action='store_true',
-    help='Only prints keywords without updating DB or file.'
+    help='Only prints keywords and exits.'
     )
 parser.add_argument(
-    '--article',
-    '-a',
-    action='store_true',
-    help='Query arXiv and Crossref for article.'
-    )
-parser.add_argument(
-    '--debug', 
-    action='store_true', 
-    help='Enable debug mode'
+        '--debug', 
+        action='store_true', 
+        help='Enable debug mode'
     )
 args = parser.parse_args()
 
-# Check if global variabble is set for DB
-if (not args.keyword_only) and (not DB_LOCATION):
-    logging.error("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
-    logging.error("\033[31mABORTED\033[0m")
-    exit(1)
-
-
-##
-# Set logger
 level = logging.DEBUG if args.debug else logging.INFO
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(level)
 
 
-##
-# Utils
-def clean_text(text):
-    return re.sub(r"[^a-zA-Z0-9]+", ' ', text).lower()
 
-from difflib import SequenceMatcher
-def same_text(text1, text2):
-    clean_text1 = clean_text(text1)
-    clean_text2 = clean_text(text2)
-    return SequenceMatcher(None, clean_text1, clean_text2).ratio() > 0.99
+if args.vector_store and (not DB_LOCATION):
+    logging.error("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
+    logging.error("\033[31mABORTED\033[0m")
+    exit(1)
 
 ##
-# DB related
-# Entries: 
-# - paper: title, author, year, bibtex_key, doi, keywords, filename, 
-#       title_embedding, summary_embedding, body_embedding
-# - ref: doi, referenced_at
-import pandas
-
-paper_db = None
-ref_db = pandas.DataFrame()
-def load_db():
-    global paper_db, ref_db
-    logger.debug("Loading DB")
-    try:
-        paper_db = pandas.read_hdf(DB_LOCATION, key='paper')
-        # ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
-        logger.debug(f"Loaded {len(paper_db.index)} entries from DB")
-    except Exception as e:
-        logger.error(e)
-        process_warning(DB_WARNING_TEXT, abort=True)
-
-def save_db():
-    global paper_db, ref_db
-    logger.debug("Saving DB")
-    try:
-        paper_db.to_hdf(DB_LOCATION, key='paper', mode='w')
-        # ref_db.to_hdf(DB_LOCATION, key='ref', mode='w')
-    except Exception as e: 
-        logger.error("Error when saving to DB")
-        logger.error(e)
-        exit()
-    logger.info(f"Saved {len(paper_db.index)} entries to DB")
-
-def append_entry(entry):
-    global paper_db, ref_db
-    new_df = pandas.DataFrame.from_dict([entry])
-    if type(paper_db) != pandas.DataFrame:
-        paper_db = new_df
-        return
-    paper_db = paper_db.set_index('key').combine_first(new_df.set_index('key')).reset_index()
-
-##
-# File read/write
-def read_file(path):
-    logger.debug(f"Reading file: {path}")
-    with open(path, 'r') as file:
-        markdown = file.readlines()
-    return markdown
-
-def write_file(path, data):
-    logger.debug(f"Writing file: {path}")
-    with open(path, 'w') as file:
-        file.write(data)
-
-
-##
-# Process file
+# Read file
 import yaml
-import re
-import bibtexparser
+with open(args.filename, 'r') as file:
+    markdown = file.readlines()
+    logger.debug(f"Loaded '{args.filename}'")
 
-def extract_yaml(markdown: list[str]):
-    logger.debug("Extracting yaml metadata")
+# Extract Markdown file metadata
+def extract_metadata(markdown):
     while markdown[0].strip() =='':
         markdown = markdown[1:]
     if '---' not in markdown[0].strip():
@@ -159,153 +78,98 @@ def extract_yaml(markdown: list[str]):
     markdown = markdown[1:]
     for idx, line in enumerate(markdown):
         if '---' in line.strip():
-            yaml_end = idx
+            metadata_end = idx
             break
 
-    yaml_text = ''.join(markdown[:yaml_end])
-    metadata = yaml.safe_load(yaml_text)
+    metadata_text = ''.join(markdown[:metadata_end])
+    metadata = yaml.safe_load(metadata_text)
 
-    return metadata, ''.join(markdown[yaml_end+1:])
+    logger.debug("Extracted metadata")
+    return metadata, ''.join(markdown[metadata_end+1:])
 
-def extract_bibtex(body: str):
-    logger.debug("Extracting BibTeX metadata")
+# Extract BibTeX metadata
+import bibtexparser
+
+def bibtex_2_dict(bibtex):
+    fields_dict = bibtex.fields_dict
+    data = {}
+    data["key"] = bibtex.key
+    data["title"] = fields_dict['title'].value
+    data["author"] = fields_dict['author'].value.split(' and ')
+    data["year"] = fields_dict['year'].value
+
+    return data
+
+def extract_bibtex_entries(markdown_text):
     pattern = r'```BibTeX(.*?)```'
-    match = re.findall(pattern, body, re.DOTALL | re.IGNORECASE)
+    match = re.findall(pattern, markdown_text, re.DOTALL | re.IGNORECASE)
+    entry = bibtexparser.parse_string(match[0])
 
-    try:
-        entry = bibtexparser.parse_string(match[0]).entries[0]
-        fields_dict = entry.fields_dict
-
-        return {
-            'bibtex_key': entry.key,
-            'title': fields_dict['title'].value,
-            'author': fields_dict['author'].value.split(' and '),
-            'year' : int(fields_dict['year'].value)
-        }
-    except:
-        logger.debug("> No BibTeX entry found")
-        return {}
-
+    logger.debug("Extracted BibTeX entry")
+    return bibtex_2_dict(entry.entries[0])
 
 ##
-# Get data from arxiv
+# Get summary
+import re
 import arxiv
+from difflib import SequenceMatcher
+
+ARXIV_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not correct
+\tQuery: {query}
+\tFetched: {fetched}
+\tDo you want to use fetched paper? (y/N):"""
 
 arxiv_client = arxiv.Client()
 
-def query_arxiv(title, author):
-    logger.debug("Getting data from arXiv")
+def clean_text(text):
+    return re.sub(r"[^a-zA-Z0-9]+", ' ', text).lower()
+
+def get_summary(title, author):
     clean_title = clean_text(title)
-    clean_author = clean_text(author)
+    clean_author = clean_text(author[0])
     
     search = arxiv.Search(
         query = f"{clean_title} AND {clean_author}",
         max_results = 1,
         sort_by = arxiv.SortCriterion.Relevance
     )
-    logger.debug("> Sent arXiv API request")
+    logger.debug("Sent arXiv API request")
     results = arxiv_client.results(search)
-    logger.debug("> Recieved arXiv API responce")
+    logger.debug("Recieved arXiv API responce")
     try:
         result = next(results)
     except:
-        logger.debug(f"> Failed to fetch from arXiv: {title}")
-        return None, None, None,
+        logger.debug(f"> Failed to fetch summary")
+        return
 
     fetched = result.title
-    if not same_text(title, fetched):
-        if not process_warning(
-            QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
-        ):
+    logger.debug(f"> Fetched '{fetched}'")
+    clean_fetched = clean_text(result.title)
+    if SequenceMatcher(None, clean_title, clean_fetched).ratio() < 0.99:
+        if input(ARXIV_WARNING_TEXT.format(query=title, fetched=fetched)) != 'y':
             logger.info("\033[33mSkipped\033[0m summary")
-            return None, None, None
-        
-    return result.summary, result.doi, result.entry_id
-
-
-##
-# Get data from Crossref
-from crossref_commons.iteration import iterate_publications_as_json
-from crossref_commons.retrieval import get_publication_as_json
-
-def query_crossref_title(title, author=None, check=False):
-    logger.debug(f"> Query: {title}")
-    query = {"query.title": clean_text(title)}
-    if author:
-        query["query.author"] = author.split(',')[0]
-    try:
-        result = next(iterate_publications_as_json(max_results=1,queries=query))
-        fetched = result["title"][0]
-    except:
-        logger.error("> Failed to query Crossref")
-        return None, None
-    
-    if not same_text(title, fetched):
-        if not check:
-            logger.info("\033[33mSkipped\033[0m reference DOI")
-            return None, None
-        if not process_warning(
-            QUERY_WARNING_TEXT.format(service = "Crossref", query=title, fetched=fetched)
-        ):
-            logger.info("\033[33mSkipped\033[0m reference")
-            return None, None
-        
-    return result.get("DOI"), result.get("reference")
-    
-def query_crossref_doi(doi):
-    logger.debug(f"> Query: {doi}")
-    try:
-        result = get_publication_as_json(doi)
-        return result.get("reference")
-    except:
-        logger.error("> Failed to query Crossref")
-        return None
-
-def get_doi(title, author):
-    if not title:
-        return None
-    doi, _ = query_crossref_title(title, author)
-    return doi
-
-def query_crossref(title, author, doi=None):
-    logger.debug("Getting data from Crossref")
-    doi, ref = (doi, ref) if doi else query_crossref_title(title, author, True)
-    if not doi:
-        return None, None
-
-    ref = ref or query_crossref_doi(doi)
-    if not ref:
-        return doi, None
-
-    ref_doi = []
-    for r in ref:
-        if r.get("DOI"):
-            ref_doi.append(r.get("DOI"))
-        else:
-            ref_doi.append(get_doi(r.get("article-title"), r.get("author")))
-
-    return doi, [i for i in ref_doi if i is not None]
-
+            return None
+    logger.debug("Fetched summary")
+    return result.summary
 
 ##
-# OpenAI API
+# OpenAI
+import os
 from openai import OpenAI
-import numpy as np
-import json
-EMBEDDING_MODEL = "text-embedding-3-small"
-CHAT_MODEL = chat_model_name = "gpt-4o-mini"
-
 endpoint = "https://models.inference.ai.azure.com"
-client = OpenAI(base_url=endpoint, api_key=TOKEN)
+token = os.environ["GITHUB_TOKEN"]
+client = OpenAI(base_url=endpoint, api_key=token)
 
+# OpenAI Embedding
 def embedding(text: list[str]):
-    logger.debug("Embedding texts")
-    logger.debug("> Sending OpenAI embedding API request")
+    embedding_model_name = "text-embedding-3-small"
+
+    logger.debug("Sent OpenAI embedding API request")
     embedding_response = client.embeddings.create(
         input = text,
-        model = EMBEDDING_MODEL,
+        model = embedding_model_name,
     )
-    logger.debug("> Recieved OpenAI embedding API responce")
+    logger.debug("Recieved OpenAI embedding API responce")
     logger.debug(embedding_response.usage)
 
     embeddings = []
@@ -315,8 +179,12 @@ def embedding(text: list[str]):
     logger.debug("Created embedding vector")
     return embeddings
 
+# OpenAI Keyword Extraction
+import json
+
 def keyword_extraction(text: str, example = None) -> list[str]:
-    logger.debug("Creating keywords")
+    chat_model_name = "gpt-4o-mini" 
+
     GPT_INSTRUCTIONS = f"""
 This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
 It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
@@ -326,16 +194,18 @@ It will list the tags using underscores instead of spaces, ordered from the most
 Every tag will be lowercase.
 Return the list in json format with key "keywords" for keyword list.
 """
+
     if example:
         GPT_INSTRUCTIONS += "\n\nExamples:\n"
         for e in example:
             GPT_INSTRUCTIONS += f"{e}\n"
-    
+
     messages = [
         {"role":"system", "content": GPT_INSTRUCTIONS},
         {"role": "user", "content": text},
     ]
-    logger.debug("> Sending OpenAI completion API request")
+
+    logger.debug("Sent OpenAI completion API request")
     completion = client.beta.chat.completions.parse(
         model = chat_model_name,
         messages = messages,
@@ -350,134 +220,116 @@ Return the list in json format with key "keywords" for keyword list.
     keywords = json_data["keywords"]
 
     try:
-        assert len(keywords) == N
+        assert len(keywords) == 10
     except:
-        if not process_warning(
-            KEYWORD_WARNING_TEXT.format(count = N, keywords = keywords), 
-            abort=True
-            ):
-            logger.fatal("\033[31mABORTED\033[0m")
-            exit()
+        print(f"\033[33mWARNING\033[0m: created keywords({keywords})")
+        if input(KEYWORD_WARNING_TEXT) == 'y':
+            return keywords
+        logger.fatal("\033[31mABORTED\033[0m")
+        exit()
 
+    logger.debug("Finished keyword creation")
     return keywords
 
 
 ##
-# Data processing
-from datetime import datetime
-def create_embedding(text:dict):
-    logger.debug("Creating embeddings")
-    text = {k: v for k, v in text.items() if v is not None}
-    payload = list(text.values())
-    embeddings = embedding(payload)
+# DB
+import pandas
 
-    return {f"embedding_{key}": embedding for key, embedding in zip(text.keys(), embeddings)}
+old_df = None
+try:
+    old_df = pandas.read_hdf(DB_LOCATION, key='df')
+    logger.debug(f"Loaded {len(old_df.index)} entries from DB")
+except:
+    if input(DB_WARNING_TEXT) != 'y':
+        logger.fatal("\033[31mABORTED\033[0m")
+        exit()
 
-def get_keyword_example(embeddings):
-    logger.debug("Getting keyword examples")
-    keys = set()
-    keyword_example = set()
-    similarity_df = paper_db.copy()
+def save_db(df):
+    try:
+        df.to_hdf(DB_LOCATION, key='df', mode='w')
+    except Exception as e: 
+        logger.error("Error when saving to DB")
+        logger.error(e)
+        exit()
+    logger.info(f"Saved {len(df.index)} entries to DB")
+
+def append_db(new_entry):
+    new_df = pandas.DataFrame.from_dict(new_entry)
     
-    for ent in ["embedding_title", "embedding_summary", "embedding_body"]:
-        emb = embeddings.get(ent)
-        if emb is None:
-            continue
-        similarity_df["sim"] = similarity_df[ent].apply(lambda x: np.linalg.norm(x-emb))
-        similarity_df = similarity_df.sort_values(by='sim', ascending=False)
-        for _, row in similarity_df[:3].iterrows():
-            keyword_example.add(f"'{row["title"]}': {", ".join(row["keywords"])}")
-            keys.add(row["key"])
-
-
-    logger.debug(f"Related: {", ".join(keys) }")
-    return list(keyword_example)
-
-
-def create_keywords(title, summary, body, keyword_example):
-    logger.debug("Creating keywords")
-    keyword_payload = f"title: {title}\n"
-    keyword_payload += f"summary:\n{summary}\n\n" if summary else ""
-    keyword_payload += f"body:\n{body}"
-
-    return keyword_extraction(keyword_payload, keyword_example)
-    
-
-def organize_db_entry(doi, arxiv_id, metadata, embeddings):
-    logger.debug("Creating DB entry")
-    entry = {}
-    entry['doi'] = doi
-    entry['arxiv_id'] = arxiv_id
-    entry["title"] = metadata["title"]
-    entry["author"] = metadata["author"]
-    entry["year"] = metadata["year"]
-    entry["category"] = metadata["category"]
-    entry["keywords"] = metadata["keywords"]
-    entry["embedding_title"] = embeddings.get("embedding_title", np.nan)
-    entry["embedding_body"] = embeddings.get("embedding_body", np.nan)
-    entry["embedding_summary"] = embeddings.get("embedding_summary", np.nan)
-    
-    return entry
-
-def organize_md_metadata(metadata):
-    logger.debug("Creating MD metadata")
-    md_metadata = {}
-    md_metadata["title"] = metadata["title"]
-    md_metadata["author"] = metadata["author"]
-    md_metadata["year"] = metadata["year"]
-    md_metadata["category"] = metadata["category"]
-    md_metadata["tags"] = metadata["tags"]
-    md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    return md_metadata
-
-def create_md_content(md_metadata, body):
-    return f"""---
-{yaml.dump(metadata, default_flow_style=False)}
----
-{body}"""
-
+    if type(old_df) != pandas.DataFrame:
+        save_db(new_df)
+        return
+    save_db(
+        old_df.set_index('key').combine_first(new_df.set_index('key')).reset_index()
+    )
 
 ##
-# Test Code
-load_db()
+# Processing
 
-# Process input file
-markdown = read_file(args.filename)
-metadata_yaml, body = extract_yaml(markdown)
-metadata_bibtex = extract_bibtex(body)
-metadata = metadata_yaml | metadata_bibtex
+# Process metadata
+from datetime import datetime
+
+metadata, body = extract_metadata(markdown)
+metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+# Add metadata from bibtex
+if args.bibtex:
+    data = extract_bibtex_entries(body)
+
+    metadata["key"] = data["key"]
+    metadata["title"] = data["title"]
+    metadata["author"] = data["author"]
+    metadata["year"] = int(data["year"])
 
 # Get summary
 summary = None
-id_arxiv = None
-if args.article:
-    summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
+if metadata.get("title"):
+    summary = get_summary(metadata["title"], metadata["author"])
 
-# Get references
-ref_doi = None
-if args.article:
-    doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
-    if not ref_doi:
-        process_warning(REF_WARNING_TEXT, abort = True)
+# Get embeddings
+embed_text = [metadata.get("title", "empty"), body]
+if summary:
+    embed_text.append(summary)
+embeddings = embedding(embed_text)
 
-# Create embeddings
-embeddings = create_embedding(
-    {
-        "title": metadata["title"],
-        "summary": summary,
-        "body" : body
-    }
-)
+keyword_example = set()
+if type(old_df) == pandas.DataFrame:
+    keys = set()
+    similarity_df = old_df.copy()
+
+    similarity_df["similarity"] = similarity_df["embedding_title"].apply(lambda x: np.linalg.norm(x-embeddings[0]))
+    similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
+    for _, row in similarity_df[:3].iterrows():
+        keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+        keys.add(row["key"])
+
+    similarity_df["similarity"] = similarity_df["embedding_body"].apply(lambda x: np.linalg.norm(x-embeddings[1]))
+    similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
+    for _, row in similarity_df[:3].iterrows():
+        keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+        keys.add(row["key"])
+
+    if summary and ("embedding_summary" in similarity_df.columns):
+        similarity_df["similarity"] = similarity_df["embedding_summary"].apply(lambda x: np.linalg.norm(x-embeddings[2]))
+        similarity_df = similarity_df.sort_values(by='similarity', ascending=False)
+        for _, row in similarity_df[:3].iterrows():
+            keyword_example.add(f"'{row["title"]}': {", ".join(row["tags"])}")
+            keys.add(row["key"])
+
+    logger.debug(f"Related: {", ".join(keys) }")
+    keyword_example = list(keyword_example)
 
 # Create keywords
-keyword_example = None
-if type(paper_db) == pandas.DataFrame:
-    keyword_example = get_keyword_example(embeddings)
-keywords = create_keywords(metadata["title"], summary, body, keyword_example)
-metadata["keywords"] = keywords
-metadata["tags"] = ["Paper"] + keywords
-metadata["category"] = keywords[0]
+keyword_payload=f"""
+title: {metadata.get("title", args.filename)}
+summary:
+{summary}
+
+note:
+{body}
+"""
+keywords = keyword_extraction(keyword_payload, keyword_example)
 
 # If keyword only mode
 if args.keyword_only:
@@ -485,13 +337,31 @@ if args.keyword_only:
         print(f"- {keyword}")
     exit()
 
-# Write MD file
-md_metadata = organize_md_metadata(metadata)
-md_content = create_md_content(md_metadata, body)
-write_file(args.filename, md_content)
+metadata["tags"] = ["Paper"] + keywords
+metadata["category"] = keywords[0]
 
-# Add entry to DB
-new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
-new_entry["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
-append_entry(new_entry)
-save_db()
+
+# Add entry to vector store
+if args.vector_store:
+    entry = {}
+    entry["key"] = metadata["key"]
+    entry["title"] = metadata["title"]
+    entry["category"] = metadata["category"]
+    entry["year"] = metadata["year"]
+    entry["tags"] = keywords
+    entry["embedding_title"] = np.array(embeddings[0])
+    entry["embedding_body"] = np.array(embeddings[1])
+    if summary:
+        entry["embedding_summary"] = np.array(embeddings[2])
+    
+    # print(entry)
+    append_db([entry])
+
+# Add matadata to Markdown
+with open(f"{args.filename}", 'w') as file:
+    file.write("---\n")
+    file.write(yaml.dump(metadata, default_flow_style=False))
+    file.write("---\n")
+    file.write(body)
+    logger.debug(f"Saved file '{args.filename}'")
+
