@@ -9,7 +9,8 @@ import logging
 # Global Parameters
 N = 10
 RATIO = 0.4
-DB_LOCATION = os.environ.get("PAPER_REL_DB")
+# DB_LOCATION = os.environ.get("PAPER_REL_DB")
+DB_LOCATION = "./test/test.h5"
 TOKEN = os.environ["GITHUB_TOKEN"]
 
 
@@ -96,13 +97,13 @@ def same_text(text1, text2):
 import pandas
 
 paper_db = None
-ref_db = pandas.DataFrame()
+ref_db = pandas.DataFrame(columns=['doi', 'ref'])
 def load_db():
     global paper_db, ref_db
     logger.debug("Loading DB")
     try:
         paper_db = pandas.read_hdf(DB_LOCATION, key='paper')
-        # ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
+        ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
         logger.debug(f"Loaded {len(paper_db.index)} entries from DB")
     except Exception as e:
         logger.error(e)
@@ -112,8 +113,9 @@ def save_db():
     global paper_db, ref_db
     logger.debug("Saving DB")
     try:
-        paper_db.to_hdf(DB_LOCATION, key='paper', mode='w')
-        # ref_db.to_hdf(DB_LOCATION, key='ref', mode='w')
+        with pandas.HDFStore(DB_LOCATION, mode='w') as store:
+            store.put('paper', paper_db)
+            store.put('ref', ref_db)
     except Exception as e: 
         logger.error("Error when saving to DB")
         logger.error(e)
@@ -248,7 +250,8 @@ def query_crossref_title(title, author=None, check=False):
         ):
             logger.info("\033[33mSkipped\033[0m reference")
             return None, None
-        
+    logger.debug(f"> Fetched: {result.get("DOI")}")
+
     return result.get("DOI"), result.get("reference")
     
 def query_crossref_doi(doi):
@@ -268,11 +271,13 @@ def get_doi(title, author):
 
 def query_crossref(title, author, doi=None):
     logger.debug("Getting data from Crossref")
-    doi, ref = (doi, ref) if doi else query_crossref_title(title, author, True)
-    if not doi:
-        return None, None
+    result = query_crossref_title(title, author, True)
 
-    ref = ref or query_crossref_doi(doi)
+    doi = doi or result[0]
+    if doi is None:
+        return None, None
+    
+    ref = result[1] or query_crossref_doi(doi)
     if not ref:
         return doi, None
 
@@ -392,7 +397,6 @@ def get_keyword_example(embeddings):
     logger.debug(f"Related: {", ".join(keys) }")
     return list(keyword_example)
 
-
 def create_keywords(title, summary, body, keyword_example):
     logger.debug("Creating keywords")
     keyword_payload = f"title: {title}\n"
@@ -401,7 +405,6 @@ def create_keywords(title, summary, body, keyword_example):
 
     return keyword_extraction(keyword_payload, keyword_example)
     
-
 def organize_db_entry(doi, arxiv_id, metadata, embeddings):
     logger.debug("Creating DB entry")
     entry = {}
@@ -432,9 +435,20 @@ def organize_md_metadata(metadata):
 
 def create_md_content(md_metadata, body):
     return f"""---
-{yaml.dump(metadata, default_flow_style=False)}
----
+{yaml.dump(md_metadata, default_flow_style=False)}---
 {body}"""
+
+def append_reference(doi, ref_doi):
+    global ref_db
+    if doi is None or ref_doi is None:
+        return
+    for ref in ref_doi:
+        logger.debug(f"> Adding relation '{ref}' <- '{doi}'")
+        if doi in ref_db['doi'].values:
+            ref_db.loc[ref_db['doi'] == ref, 'ref'].apply(lambda x: x.append(doi))
+        else:
+            new_row = pandas.DataFrame({'doi': [ref], 'ref': [[doi]]})
+            ref_db = pandas.concat([ref_db, new_row], ignore_index=True)
 
 
 ##
@@ -488,6 +502,9 @@ if args.keyword_only:
 md_metadata = organize_md_metadata(metadata)
 md_content = create_md_content(md_metadata, body)
 write_file(args.filename, md_content)
+
+# Update references
+append_reference(doi, ref_doi)
 
 # Add entry to DB
 new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
