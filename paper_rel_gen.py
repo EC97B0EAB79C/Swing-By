@@ -11,6 +11,7 @@ N = 10
 RATIO = 0.4
 DB_LOCATION = os.environ.get("PAPER_REL_DB")
 TOKEN = os.environ["GITHUB_TOKEN"]
+ADS_API_KEY = os.environ["ADS_API_KEY"]
 
 
 # Warning Messages
@@ -289,6 +290,43 @@ def query_crossref(title, author, doi=None):
 
 
 ##
+# Get data from ADS
+import requests
+
+ADS_ENDPOINT = "https://api.adsabs.harvard.edu/v1/search/query"
+
+def query_ads(arxiv_id):
+    logger.debug("Getting data from ADS")
+    
+    headers = {
+        "Authorization": f"Bearer {ADS_API_KEY}"
+    }
+    
+    params = {
+        "q": f"identifier:{arxiv_id}",
+        "fl": "reference,bibcode"
+    }
+    
+    try:
+        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
+        response.raise_for_status()
+        
+        data = response.json()
+        docs = data.get('response', {}).get('docs', [])
+        
+        if not docs:
+            return None, None
+            
+        references = docs[0].get('reference', [])
+        bibcode = docs[0].get('bibcode')
+        return references, bibcode
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"> Failed to query ADS: {str(e)}")
+        return None, None
+
+
+##
 # OpenAI API
 from openai import OpenAI
 import numpy as np
@@ -463,6 +501,13 @@ ref_doi = None
 if args.article:
     doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
     if not ref_doi:
+        process_warning(REF_WARNING_TEXT, abort = True)
+
+# Get ADS references
+ads_ref = None
+if args.article and id_arxiv:
+    ads_ref, bibcode = query_ads(id_arxiv)
+    if not ads_ref:
         process_warning(REF_WARNING_TEXT, abort = True)
 
 # Create embeddings
