@@ -495,6 +495,7 @@ md_content = create_md_content(md_metadata, body)
 write_file(args.filename, md_content)
 
 # Add entry to DB
-new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
-append_entry(new_entry)
-save_db()
+if args.article:
+    new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
+    append_entry(new_entry)
+    save_db()
