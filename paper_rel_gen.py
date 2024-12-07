@@ -466,9 +466,10 @@ if args.article:
         process_warning(REF_WARNING_TEXT, abort = True)
 
 # Create embeddings
+query_title = metadata.get("title") or metadata.get("name") or args.filename
 embeddings = create_embedding(
     {
-        "title": metadata["title"],
+        "title": query_title,
         "summary": summary,
         "body" : body
     }
@@ -478,7 +479,7 @@ embeddings = create_embedding(
 keyword_example = None
 if type(paper_db) == pandas.DataFrame:
     keyword_example = get_keyword_example(embeddings)
-keywords = create_keywords(metadata["title"], summary, body, keyword_example)
+keywords = create_keywords(query_title, summary, body, keyword_example)
 metadata["keywords"] = keywords
 metadata["tags"] = ["Paper"] + keywords
 metadata["category"] = keywords[0]
