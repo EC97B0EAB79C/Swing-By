@@ -94,6 +94,11 @@ def same_text(text1, text2):
     clean_text2 = clean_text(text2)
     return SequenceMatcher(None, clean_text1, clean_text2).ratio() > 0.99
 
+def check_title(title1, title2, message, abort=False):
+    if same_text(title1, title2):
+        return True
+    return process_warning(message, abort)
+
 
 ##
 # DB
@@ -197,27 +202,26 @@ def process_arxiv_result(results, title):
     try:
         result = next(results)
     except:
-        logger.debug(f"> Failed to fetch from arXiv: {title}")
+        logger.debug(f"> Failed to fetch from arXiv")
         return None, None, None
     
     fetched = result.title
-    if not same_text(title, fetched):
-        if not process_warning(
-            QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
-        ):
-            logger.info("\033[33mSkipped\033[0m summary")
-            return None, None, None
+    if not check_title(
+        title,
+        fetched,
+        QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
+    ):
+        logger.info("\033[33mSkipped\033[0m summary")
+        return None, None, None
     
     logger.debug(f"> Successfully fetched paper: {fetched}")
     return result.entry_id, result.summary, result.doi
 
-def query_arxiv_title(title, author):
-    logger.debug("Getting data from arXiv")
-    clean_title = clean_text(title)
-    clean_author = clean_text(author)
-    
+def _fetch_arxiv_data(query_str, title):
+    logger.debug(f"Querying arXiv with query={query_str}")
+
     search = arxiv.Search(
-        query = f"{clean_title} AND {clean_author}",
+        query = query_str,
         max_results = 1,
         sort_by = arxiv.SortCriterion.Relevance
     )
@@ -226,17 +230,17 @@ def query_arxiv_title(title, author):
     logger.debug("> Received arXiv API response")
     return process_arxiv_result(results, title)
 
+def query_arxiv_title(title, author):
+    logger.debug("Getting data from arXiv by title/author")
+    q = f"{clean_text(title)} AND {clean_text(author)}"
+
+    return _fetch_arxiv_data(q, title)
+
 def query_arxiv_doi(doi, title):
-    logger.debug("Getting data from arXiv")
-    search = arxiv.Search(
-        query = doi,
-        max_results = 1,
-        sort_by = arxiv.SortCriterion.Relevance
-    )
-    logger.debug("> Sent arXiv API request")
-    results = arxiv_client.results(search)
-    logger.debug("> Received arXiv API response")
-    return process_arxiv_result(results, title)
+    logger.debug(f"Getting data from arXiv for DOI: {doi}")
+    q = f"{doi}"
+
+    return _fetch_arxiv_data(q, title)
 
 
 ##
@@ -280,7 +284,7 @@ def create_crossref_reference(reference):
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
-    doi, reference = send_crossref_request(title, author, check=False)
+    doi, reference = send_crossref_request(title, author, check=True)
     return doi, list(create_crossref_reference(reference))
 
 def query_crossref_doi(doi, title):
@@ -297,96 +301,114 @@ def query_crossref_doi(doi, title):
 # Query ADS
 ADS_ENDPOINT = "https://api.adsabs.harvard.edu/v1/search/query"
 
+def _fetch_ads_data(query_str, title):
+    logger.debug(f"Querying ADS with query={query_str}")
+
+    headers = {
+        "Authorization": f"Bearer {ADS_API_KEY}"
+    }
+    params = {
+        "q": query_str,
+        "fl": "reference,bibcode,doi,abstract,title"
+    }
+
+    try:
+        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        docs = data.get('response', {}).get('docs', [])
+        if not docs:
+            return None, None, None, None
+
+        first_doc = docs[0]
+        fetched = first_doc.get('title')
+
+        if not check_title(
+            title, 
+            fetched, 
+            QUERY_WARNING_TEXT.format(service="ADS", query=title, fetched=fetched)
+        ):
+            logger.info("\033[33mSkipped\033[0m reference")
+            return None, None, None, None
+
+        references = first_doc.get('reference', [])
+        bibcode = first_doc.get('bibcode')
+        doi = first_doc.get('doi')
+        abstract = first_doc.get('abstract')
+
+        return doi, abstract, references, bibcode
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"> Failed to query ADS: {str(e)}")
+        return None, None, None, None
+
 def query_ads_title(title, author=None):
-    logger.debug("Getting data from ADS")
+    logger.debug("Getting data from ADS by title/author")
+    q = f"{clean_text(title)}"
+    if author:
+        q += f" AND {clean_text(author)}"
 
-    headers = {
-        "Authorization": f"Bearer {ADS_API_KEY}"
-    }
-    params = {
-        "q": f"{clean_text(title)} AND {clean_text(author)}",
-        "fl": "reference,bibcode,doi,abstract,title"
-    }
+    return _fetch_ads_data(q, title)
 
-    try:
-        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-
-        data = response.json()
-        docs = data.get('response', {}).get('docs', [])
-        
-        if not docs:
-            return None, None, None, None
-        if not same_text(title, docs[0].get('title')):
-            if not process_warning(
-                QUERY_WARNING_TEXT.format(service = "ADS", query=title, fetched=docs[0].get('title'))
-            ):
-                logger.info("\033[33mSkipped\033[0m reference")
-                return None, None, None, None
-            
-        references = docs[0].get('reference', [])
-        bibcode = docs[0].get('bibcode')
-        doi = docs[0].get('doi')
-        abstract = docs[0].get('abstract')
-
-        return doi, abstract, references, bibcode
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"> Failed to query ADS: {str(e)}")
-        return None, None, None, None
-
-
-def query_ads_arxiv(arxiv_id):
+def query_ads_arxiv(title, arxiv_id):
     logger.debug(f"Getting data from ADS for arXiv: {arxiv_id}")
+    q = f"arXiv:{arxiv_id}"
+    
+    return _fetch_ads_data(q, title)
 
-    headers = {
-        "Authorization": f"Bearer {ADS_API_KEY}"
-    }
-    params = {
-        "q": f"identifier:{arxiv_id}",
-        "fl": "reference,bibcode,doi,abstract,title"
-    }
+def query_ads_doi(title, doi):
+    logger.debug(f"Getting data from ADS for DOI: {doi}")
+    q = f"doi:{doi}"
 
-    try:
-        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-
-        data = response.json()
-        docs = data.get('response', {}).get('docs', [])
-        
-        if not docs:
-            return None, None, None, None
-        if not same_text(title, docs[0].get('title')):
-            if not process_warning(
-                QUERY_WARNING_TEXT.format(service = "ADS", query=title, fetched=docs[0].get('title'))
-            ):
-                logger.info("\033[33mSkipped\033[0m reference")
-                return None, None, None, None
-            
-        references = docs[0].get('reference', [])
-        bibcode = docs[0].get('bibcode')
-        doi = docs[0].get('doi')
-        abstract = docs[0].get('abstract')
-
-        return doi, abstract, references, bibcode
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"> Failed to query ADS: {str(e)}")
-        return None, None, None, None
+    return _fetch_ads_data(q, title)
 
 ##
 # Process Article
 def process_article(title, authors):
-    arxiv_id, summary, arxiv_doi = query_arxiv_title(title, authors[0])
-    crossref_doi, crossref_reference = query_crossref_title(title, authors[0])
-    ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_arxiv(arxiv_id)
+    data = {}
+    result = query_arxiv_title(title, authors[0])
+    data.update(
+        {
+            "arxiv_id": result[0],
+            "summary": result[1],
+            "arxiv_doi": result[2],
+        }
+    )
+    
+    result = query_crossref_title(title, authors[0])
+    data.update(
+        {
+            "crossref_doi": result[0],
+            "crossref_reference": result[1],
+        }
+    )
+    
+    result = query_ads_title(title, authors[0])
+    data.update(
+        {
+            "ads_doi": result[0],
+            "ads_abstract": result[1],
+            "ads_reference": result[2],
+            "ads_bibcode": result[3],
+        }
+    )
 
-    print("Arxiv")
-    print(arxiv_id, summary, arxiv_doi)
-    print("Crossref")
-    print(crossref_doi, crossref_reference)
-    print("ADS")
-    print(ads_doi, ads_abstract, ads_reference, ads_bibcode)
+    if (not data["arxiv_id"]):
+        if data["crossref_doi"]:
+            result = query_arxiv_doi(data["crossref_doi"], title)
+            data.update(
+                {
+                    "arxiv_id": result[0],
+                    "summary": result[1],
+                    "arxiv_doi": result[2],
+                }
+            )
+        #TODO 
+        
+        
+
+    print(data)
     
 
 process_article(
