@@ -9,10 +9,15 @@ import re
 import bibtexparser
 import pandas
 import yaml
+import json
+import numpy as np
+# Query related
 import arxiv
 from crossref_commons.iteration import iterate_publications_as_json
 from crossref_commons.retrieval import get_publication_as_json
 import requests
+# OpenAI related
+from openai import OpenAI
 
 # Global Parameters
 N = 10
@@ -116,6 +121,7 @@ class PaperDB:
     def __init__(self):
         self.paper_db = None
         self.ref_db = pandas.DataFrame(columns=['doi', 'doi_ref', 'bibcode_ref'])
+        self.load()
 
     def load(self):
         logger.debug("Loading DB")
@@ -481,14 +487,176 @@ def _fill_missing_ads_data(data, fallback_title):
             data["ads_abstract"] = ads_abstract
             data["ads_reference"] = ads_reference
             data["ads_bibcode"] = ads_bibcode
-    
 
-process_article(
-    "Deep residual learning for image recognition",
-    ["He, Kaiming"]
-)
+
+##
+# OpenAI API
+EMBEDDING_MODEL = "text-embedding-3-small"
+CHAT_MODEL = chat_model_name = "gpt-4o-mini"
+
+endpoint = "https://models.inference.ai.azure.com"
+client = OpenAI(base_url=endpoint, api_key=TOKEN)
+
+
+def embedding(text: list[str]):
+    logger.debug("Embedding texts")
+    logger.debug("> Sending OpenAI embedding API request")
+    embedding_response = client.embeddings.create(
+        input = text,
+        model = EMBEDDING_MODEL,
+    )
+    logger.debug("> Recieved OpenAI embedding API responce")
+    logger.debug(embedding_response.usage)
+
+    embeddings = []
+    for data in embedding_response.data:
+        embeddings.append(np.array(data.embedding))
+    
+    logger.debug("Created embedding vector")
+    return embeddings
+
+def keyword_extraction(text: str, example = None) -> list[str]:
+    logger.debug("Creating keywords")
+    GPT_INSTRUCTIONS = f"""
+This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
+It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
+The GPT will aim to provide up to {N} keywords, with 1 keyword acting as a category, {N*RATIO} general tags applicable to a broad context, and {N - 1 - N*RATIO} being more specific to the content of the note.
+It avoids suggesting overly generic or redundant keywords unless necessary.
+It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
+Every tag will be lowercase.
+Return the list in json format with key "keywords" for keyword list.
+"""
+    if example:
+        GPT_INSTRUCTIONS += "\n\nExamples:\n"
+        for e in example:
+            GPT_INSTRUCTIONS += f"{e}\n"
+    
+    messages = [
+        {"role":"system", "content": GPT_INSTRUCTIONS},
+        {"role": "user", "content": text},
+    ]
+    logger.debug("> Sending OpenAI completion API request")
+    completion = client.beta.chat.completions.parse(
+        model = chat_model_name,
+        messages = messages,
+        response_format = { "type": "json_object" }
+    )
+    logger.debug("Recieved OpenAI completion API responce")
+    logger.debug(completion.usage)
+
+    chat_response = completion.choices[0].message
+    json_data = json.loads(chat_response.content)
+
+    keywords = json_data["keywords"]
+
+    try:
+        assert len(keywords) == N
+    except:
+        if not process_warning(
+            KEYWORD_WARNING_TEXT.format(count = N, keywords = keywords), 
+            abort=True
+            ):
+            logger.fatal("\033[31mABORTED\033[0m")
+            exit()
+
+    return keywords
+
+
+##
+# Data processing
+from datetime import datetime
+def create_embedding(text:dict):
+    logger.debug("Creating embeddings")
+    text = {k: v for k, v in text.items() if v is not None}
+    payload = list(text.values())
+    embeddings = embedding(payload)
+
+    return {f"embedding_{key}": embedding for key, embedding in zip(text.keys(), embeddings)}
+
+def get_keyword_example(embeddings):
+    logger.debug("Getting keyword examples")
+    keys = set()
+    keyword_example = set()
+    similarity_df = DB.paper_db.copy()
+    
+    for ent in ["embedding_title", "embedding_summary", "embedding_body"]:
+        emb = embeddings.get(ent)
+        if emb is None:
+            continue
+        similarity_df["sim"] = similarity_df[ent].apply(lambda x: np.linalg.norm(x-emb))
+        similarity_df = similarity_df.sort_values(by='sim', ascending=False)
+        for _, row in similarity_df[:3].iterrows():
+            keyword_example.add(f"'{row["title"]}': {", ".join(row["keywords"])}")
+            keys.add(row["key"])
+
+
+    logger.debug(f"Related: {", ".join(keys) }")
+    return list(keyword_example)
+
+def create_keywords(title, summary, body, keyword_example):
+    logger.debug("Creating keywords")
+    keyword_payload = f"title: {title}\n"
+    keyword_payload += f"summary:\n{summary}\n\n" if summary else ""
+    keyword_payload += f"body:\n{body}"
+
+    return keyword_extraction(keyword_payload, keyword_example)
+
+
+def organize_db_entry(data, embeddings):
+    logger.debug("Creating DB entry")
+    entry = {}
+    #TODO
+    entry["embedding_title"] = embeddings.get("embedding_title", np.nan)
+    entry["embedding_body"] = embeddings.get("embedding_body", np.nan)
+    entry["embedding_summary"] = embeddings.get("embedding_summary", np.nan)
+    
+    return entry
+
+def organize_md_metadata(data):
+    logger.debug("Creating MD metadata")
+    md_metadata = {}
+    #TODO
+    md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    md_metadata["created"] = str(data["created"] or md_metadata["updated"])
+    
+    return md_metadata
+
+def create_md_content(md_metadata, body):
+    return f"""---
+{yaml.dump(md_metadata, default_flow_style=False)}---
+{body}"""
+
+def append_reference(doi, ref_doi):
+    global ref_db
+    if doi is None or ref_doi is None:
+        return
+    for ref in ref_doi:
+        logger.debug(f"> Adding relation '{ref}' <- '{doi}'")
+        if doi in ref_db['doi'].values:
+            ref_db.loc[ref_db['doi'] == ref, 'ref'].apply(lambda x: x.append(doi))
+        else:
+            new_row = pandas.DataFrame({'doi': [ref], 'ref': [[doi]]})
+            ref_db = pandas.concat([ref_db, new_row], ignore_index=True)
+
+
+##
+# Processing article
+DB = PaperDB()
+
+# Process input file
+markdown = read_file(args.filename)
+metadata_yaml, body = extract_yaml(markdown)
+metadata_bibtex = extract_bibtex(body)
+metadata = metadata_yaml | metadata_bibtex
+metadata["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
+
+# process_article(
+#     "Deep residual learning for image recognition",
+#     ["He, Kaiming"]
+# )
 
 # process_article(
 #     "Deep learning-based super-resolution climate simulator-emulator framework for urban heat studies",
 #     ["Wu, Yuankai"]
 # )
+
