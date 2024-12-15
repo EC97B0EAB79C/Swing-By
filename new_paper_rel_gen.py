@@ -284,7 +284,7 @@ def create_crossref_reference(reference):
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
-    doi, reference = send_crossref_request(title, author, check=False)
+    doi, reference = send_crossref_request(title, author, check=True)
     return doi, list(create_crossref_reference(reference))
 
 def query_crossref_doi(doi, title):
@@ -322,12 +322,12 @@ def _fetch_ads_data(query_str, title):
             return None, None, None, None
 
         first_doc = docs[0]
-        fetched_title = first_doc.get('title')
+        fetched = first_doc.get('title')
 
         if not check_title(
             title, 
-            fetched_title, 
-            QUERY_WARNING_TEXT.format(service="ADS", query=title, fetched=fetched_title)
+            fetched, 
+            QUERY_WARNING_TEXT.format(service="ADS", query=title, fetched=fetched)
         ):
             logger.info("\033[33mSkipped\033[0m reference")
             return None, None, None, None
