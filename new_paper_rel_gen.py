@@ -202,27 +202,26 @@ def process_arxiv_result(results, title):
     try:
         result = next(results)
     except:
-        logger.debug(f"> Failed to fetch from arXiv: {title}")
+        logger.debug(f"> Failed to fetch from arXiv")
         return None, None, None
     
     fetched = result.title
-    if not same_text(title, fetched):
-        if not process_warning(
-            QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
-        ):
-            logger.info("\033[33mSkipped\033[0m summary")
-            return None, None, None
+    if not check_title(
+        title,
+        fetched,
+        QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
+    ):
+        logger.info("\033[33mSkipped\033[0m summary")
+        return None, None, None
     
     logger.debug(f"> Successfully fetched paper: {fetched}")
     return result.entry_id, result.summary, result.doi
 
-def query_arxiv_title(title, author):
-    logger.debug("Getting data from arXiv")
-    clean_title = clean_text(title)
-    clean_author = clean_text(author)
-    
+def _fetch_arxiv_data(query_str, title):
+    logger.debug(f"Querying arXiv with query={query_str}")
+
     search = arxiv.Search(
-        query = f"{clean_title} AND {clean_author}",
+        query = query_str,
         max_results = 1,
         sort_by = arxiv.SortCriterion.Relevance
     )
@@ -231,17 +230,17 @@ def query_arxiv_title(title, author):
     logger.debug("> Received arXiv API response")
     return process_arxiv_result(results, title)
 
+def query_arxiv_title(title, author):
+    logger.debug("Getting data from arXiv by title/author")
+    q = f"{clean_text(title)} AND {clean_text(author)}"
+
+    return _fetch_arxiv_data(q, title)
+
 def query_arxiv_doi(doi, title):
-    logger.debug("Getting data from arXiv")
-    search = arxiv.Search(
-        query = doi,
-        max_results = 1,
-        sort_by = arxiv.SortCriterion.Relevance
-    )
-    logger.debug("> Sent arXiv API request")
-    results = arxiv_client.results(search)
-    logger.debug("> Received arXiv API response")
-    return process_arxiv_result(results, title)
+    logger.debug(f"Getting data from arXiv for DOI: {doi}")
+    q = f"{doi}"
+
+    return _fetch_arxiv_data(q, title)
 
 
 ##
