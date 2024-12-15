@@ -94,6 +94,11 @@ def same_text(text1, text2):
     clean_text2 = clean_text(text2)
     return SequenceMatcher(None, clean_text1, clean_text2).ratio() > 0.99
 
+def check_title(title1, title2, message, abort=False):
+    if same_text(title1, title2):
+        return True
+    return process_warning(message, abort)
+
 
 ##
 # DB
@@ -297,121 +302,67 @@ def query_crossref_doi(doi, title):
 # Query ADS
 ADS_ENDPOINT = "https://api.adsabs.harvard.edu/v1/search/query"
 
+def _fetch_ads_data(query_str, title):
+    logger.debug(f"Querying ADS with query={query_str}")
+
+    headers = {
+        "Authorization": f"Bearer {ADS_API_KEY}"
+    }
+    params = {
+        "q": query_str,
+        "fl": "reference,bibcode,doi,abstract,title"
+    }
+
+    try:
+        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        docs = data.get('response', {}).get('docs', [])
+        if not docs:
+            return None, None, None, None
+
+        first_doc = docs[0]
+        fetched_title = first_doc.get('title')
+
+        if not check_title(
+            title, 
+            fetched_title, 
+            QUERY_WARNING_TEXT.format(service="ADS", query=title, fetched=fetched_title)
+        ):
+            logger.info("\033[33mSkipped\033[0m reference")
+            return None, None, None, None
+
+        references = first_doc.get('reference', [])
+        bibcode = first_doc.get('bibcode')
+        doi = first_doc.get('doi')
+        abstract = first_doc.get('abstract')
+
+        return doi, abstract, references, bibcode
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"> Failed to query ADS: {str(e)}")
+        return None, None, None, None
+
 def query_ads_title(title, author=None):
-    logger.debug("Getting data from ADS")
+    logger.debug("Getting data from ADS by title/author")
+    q = f"{clean_text(title)}"
+    if author:
+        q += f" AND {clean_text(author)}"
 
-    headers = {
-        "Authorization": f"Bearer {ADS_API_KEY}"
-    }
-    params = {
-        "q": f"{clean_text(title)} AND {clean_text(author)}",
-        "fl": "reference,bibcode,doi,abstract,title"
-    }
+    return _fetch_ads_data(q, title)
 
-    try:
-        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-
-        data = response.json()
-        docs = data.get('response', {}).get('docs', [])
-        
-        if not docs:
-            return None, None, None, None
-        if not same_text(title, docs[0].get('title')):
-            if not process_warning(
-                QUERY_WARNING_TEXT.format(service = "ADS", query=title, fetched=docs[0].get('title'))
-            ):
-                logger.info("\033[33mSkipped\033[0m reference")
-                return None, None, None, None
-            
-        references = docs[0].get('reference', [])
-        bibcode = docs[0].get('bibcode')
-        doi = docs[0].get('doi')
-        abstract = docs[0].get('abstract')
-
-        return doi, abstract, references, bibcode
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"> Failed to query ADS: {str(e)}")
-        return None, None, None, None
-
-
-def query_ads_arxiv(arxiv_id):
+def query_ads_arxiv(title, arxiv_id):
     logger.debug(f"Getting data from ADS for arXiv: {arxiv_id}")
+    q = f"arXiv:{arxiv_id}"
+    
+    return _fetch_ads_data(q, title)
 
-    headers = {
-        "Authorization": f"Bearer {ADS_API_KEY}"
-    }
-    params = {
-        "q": f"arXiv:{arxiv_id}",
-        "fl": "reference,bibcode,doi,abstract,title"
-    }
-
-    try:
-        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-
-        data = response.json()
-        docs = data.get('response', {}).get('docs', [])
-        
-        if not docs:
-            return None, None, None, None
-        if not same_text(title, docs[0].get('title')):
-            if not process_warning(
-                QUERY_WARNING_TEXT.format(service = "ADS", query=title, fetched=docs[0].get('title'))
-            ):
-                logger.info("\033[33mSkipped\033[0m reference")
-                return None, None, None, None
-            
-        references = docs[0].get('reference', [])
-        bibcode = docs[0].get('bibcode')
-        doi = docs[0].get('doi')
-        abstract = docs[0].get('abstract')
-
-        return doi, abstract, references, bibcode
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"> Failed to query ADS: {str(e)}")
-        return None, None, None, None
-
-
-def query_ads_doi(doi):
+def query_ads_doi(title, doi):
     logger.debug(f"Getting data from ADS for DOI: {doi}")
+    q = f"doi:{doi}"
 
-    headers = {
-        "Authorization": f"Bearer {ADS_API_KEY}"
-    }
-    params = {
-        "q": f"doi:{doi}",
-        "fl": "reference,bibcode,doi,abstract,title"
-    }
-
-    try:
-        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-
-        data = response.json()
-        docs = data.get('response', {}).get('docs', [])
-        
-        if not docs:
-            return None, None, None, None
-        if not same_text(title, docs[0].get('title')):
-            if not process_warning(
-                QUERY_WARNING_TEXT.format(service = "ADS", query=title, fetched=docs[0].get('title'))
-            ):
-                logger.info("\033[33mSkipped\033[0m reference")
-                return None, None, None, None
-            
-        references = docs[0].get('reference', [])
-        bibcode = docs[0].get('bibcode')
-        doi = docs[0].get('doi')
-        abstract = docs[0].get('abstract')
-
-        return doi, abstract, references, bibcode
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"> Failed to query ADS: {str(e)}")
-        return None, None, None, None
+    return _fetch_ads_data(q, title)
 
 ##
 # Process Article
