@@ -99,6 +99,13 @@ def check_title(title1, title2, message, abort=False):
         return True
     return process_warning(message, abort)
 
+def verify_entry(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return verify_entry(value[0])
+    else:
+        return ""
 
 ##
 # DB
@@ -215,10 +222,10 @@ def process_arxiv_result(results, title):
         return None, None, None
     
     logger.debug(f"> Successfully fetched paper: {fetched}")
-    return result.entry_id, result.summary, result.doi
+    return result.entry_id.split('/')[-1], result.summary, result.doi
 
 def _fetch_arxiv_data(query_str, title):
-    logger.debug(f"Querying arXiv with query={query_str}")
+    logger.debug(f"> Querying arXiv with query={query_str}")
 
     search = arxiv.Search(
         query = query_str,
@@ -302,7 +309,7 @@ def query_crossref_doi(doi, title):
 ADS_ENDPOINT = "https://api.adsabs.harvard.edu/v1/search/query"
 
 def _fetch_ads_data(query_str, title):
-    logger.debug(f"Querying ADS with query={query_str}")
+    logger.debug(f"> Querying ADS with query={query_str}")
 
     headers = {
         "Authorization": f"Bearer {ADS_API_KEY}"
@@ -322,7 +329,7 @@ def _fetch_ads_data(query_str, title):
             return None, None, None, None
 
         first_doc = docs[0]
-        fetched = first_doc.get('title')
+        fetched = verify_entry(first_doc.get('title'))
 
         if not check_title(
             title, 
@@ -334,7 +341,7 @@ def _fetch_ads_data(query_str, title):
 
         references = first_doc.get('reference', [])
         bibcode = first_doc.get('bibcode')
-        doi = first_doc.get('doi')
+        doi = verify_entry(first_doc.get('doi'))
         abstract = first_doc.get('abstract')
 
         return doi, abstract, references, bibcode
@@ -351,67 +358,137 @@ def query_ads_title(title, author=None):
 
     return _fetch_ads_data(q, title)
 
-def query_ads_arxiv(title, arxiv_id):
+def query_ads_arxiv(arxiv_id, title):
     logger.debug(f"Getting data from ADS for arXiv: {arxiv_id}")
     q = f"arXiv:{arxiv_id}"
     
     return _fetch_ads_data(q, title)
 
-def query_ads_doi(title, doi):
+def query_ads_doi(doi, title):
     logger.debug(f"Getting data from ADS for DOI: {doi}")
     q = f"doi:{doi}"
 
     return _fetch_ads_data(q, title)
 
+
 ##
 # Process Article
 def process_article(title, authors):
-    data = {}
-    result = query_arxiv_title(title, authors[0])
-    data.update(
-        {
-            "arxiv_id": result[0],
-            "summary": result[1],
-            "arxiv_doi": result[2],
-        }
-    )
-    
-    result = query_crossref_title(title, authors[0])
-    data.update(
-        {
-            "crossref_doi": result[0],
-            "crossref_reference": result[1],
-        }
-    )
-    
-    result = query_ads_title(title, authors[0])
-    data.update(
-        {
-            "ads_doi": result[0],
-            "ads_abstract": result[1],
-            "ads_reference": result[2],
-            "ads_bibcode": result[3],
-        }
-    )
+    data = {
+        "arxiv_id": None,
+        "summary": None,
+        "arxiv_doi": None,
+        "crossref_doi": None,
+        "crossref_reference": None,
+        "ads_doi": None,
+        "ads_abstract": None,
+        "ads_reference": None,
+        "ads_bibcode": None,
+    }
 
-    if (not data["arxiv_id"]):
-        if data["crossref_doi"]:
-            result = query_arxiv_doi(data["crossref_doi"], title)
-            data.update(
-                {
-                    "arxiv_id": result[0],
-                    "summary": result[1],
-                    "arxiv_doi": result[2],
-                }
-            )
-        #TODO 
-        
-        
+    first_author = authors[0] if authors else None
 
-    print(data)
+    _update_arxiv_title(data, title, first_author)
+    _update_crossref_title(data, title, first_author)
+    _update_ads_title(data, title, first_author)
+
+    _fill_missing_arxiv_data(data, title)
+    _fill_missing_crossref_data(data, title)
+    _fill_missing_ads_data(data, title)
+
+    return data
+
+def _update_arxiv_title(data, title, author):
+    arxiv_id, summary, arxiv_doi = query_arxiv_title(title, author)
+    data["arxiv_id"] = arxiv_id
+    data["summary"] = summary
+    data["arxiv_doi"] = arxiv_doi
+
+def _update_crossref_title(data, title, author):
+    crossref_doi, crossref_reference = query_crossref_title(title, author)
+    data["crossref_doi"] = crossref_doi
+    data["crossref_reference"] = crossref_reference
+
+def _update_ads_title(data, title, author):
+    ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_title(title, author)
+    data["ads_doi"] = ads_doi
+    data["ads_abstract"] = ads_abstract
+    data["ads_reference"] = ads_reference
+    data["ads_bibcode"] = ads_bibcode
+
+def _fill_missing_arxiv_data(data, fallback_title):
+    if data["arxiv_id"]:
+        return
+
+    if data["crossref_doi"]:
+        arxiv_id, summary, arxiv_doi = query_arxiv_doi(data["crossref_doi"], fallback_title)
+        if arxiv_id:
+            data["arxiv_id"] = arxiv_id
+            data["summary"] = summary
+            data["arxiv_doi"] = arxiv_doi
+            return
+
+    if data["ads_doi"]:
+        arxiv_id, summary, arxiv_doi = query_arxiv_doi(data["ads_doi"], fallback_title)
+        if arxiv_id:
+            data["arxiv_id"] = arxiv_id
+            data["summary"] = summary
+            data["arxiv_doi"] = arxiv_doi
+
+def _fill_missing_crossref_data(data, fallback_title):
+    if data["crossref_reference"]:
+        return
+
+    if data["arxiv_doi"]:
+        crossref_doi, crossref_reference = query_crossref_doi(data["arxiv_doi"], fallback_title)
+        if crossref_reference:
+            data["crossref_doi"] = crossref_doi
+            data["crossref_reference"] = crossref_reference
+            return
+
+    if data["ads_doi"]:
+        crossref_doi, crossref_reference = query_crossref_doi(data["ads_doi"], fallback_title)
+        if crossref_reference:
+            data["crossref_doi"] = crossref_doi
+            data["crossref_reference"] = crossref_reference
+
+def _fill_missing_ads_data(data, fallback_title):
+    if data["ads_bibcode"]:
+        return
+
+    if data["arxiv_doi"]:
+        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_doi(data["arxiv_doi"], fallback_title)
+        if ads_bibcode:
+            data["ads_doi"] = ads_doi
+            data["ads_abstract"] = ads_abstract
+            data["ads_reference"] = ads_reference
+            data["ads_bibcode"] = ads_bibcode
+            return
+
+    if data["crossref_doi"]:
+        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_doi(data["crossref_doi"], fallback_title)
+        if ads_bibcode:
+            data["ads_doi"] = ads_doi
+            data["ads_abstract"] = ads_abstract
+            data["ads_reference"] = ads_reference
+            data["ads_bibcode"] = ads_bibcode
+            return
+
+    if not data["ads_bibcode"] and data["arxiv_id"]:
+        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_arxiv(data["arxiv_id"], fallback_title)
+        if ads_bibcode:
+            data["ads_doi"] = ads_doi
+            data["ads_abstract"] = ads_abstract
+            data["ads_reference"] = ads_reference
+            data["ads_bibcode"] = ads_bibcode
     
 
 process_article(
     "Deep residual learning for image recognition",
     ["He, Kaiming"]
 )
+
+# process_article(
+#     "Deep learning-based super-resolution climate simulator-emulator framework for urban heat studies",
+#     ["Wu, Yuankai"]
+# )
