@@ -512,7 +512,7 @@ def embedding(text: list[str]):
         model = EMBEDDING_MODEL,
     )
     logger.debug("> Recieved OpenAI embedding API responce")
-    logger.debug("> " + embedding_response.usage)
+    logger.debug(f"> {embedding_response.usage}")
 
     embeddings = []
     for data in embedding_response.data:
@@ -548,7 +548,7 @@ Return the list in json format with key "keywords" for keyword list.
         response_format = { "type": "json_object" }
     )
     logger.debug("> Recieved OpenAI completion API responce")
-    logger.debug("> " + completion.usage)
+    logger.debug(f"> {completion.usage}")
 
     chat_response = completion.choices[0].message
     json_data = json.loads(chat_response.content)
@@ -699,7 +699,6 @@ if args.article:
 query_summary = data.get("summary") or data.get("ads_abstract")
 
 # Create embeddings
-query_title = metadata.get("title") or metadata.get("name") or args.filename
 embeddings = create_embedding(
     {
         "title": query_title,
