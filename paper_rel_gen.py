@@ -699,6 +699,7 @@ if args.article:
 query_summary = data.get("summary") or data.get("ads_abstract")
 
 # Create embeddings
+query_title = metadata.get("title") or metadata.get("name") or args.filename
 embeddings = create_embedding(
     {
         "title": query_title,
@@ -727,4 +728,3 @@ write_file(args.filename, md_content)
 new_entry = organize_db_entry(data, metadata, embeddings, keywords)
 DB.append_entry(new_entry)
 DB.save()
- 
