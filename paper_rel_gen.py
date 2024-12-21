@@ -146,11 +146,13 @@ class PaperDB:
         logger.info(f"Saved {len(self.paper_db.index)} entries to DB")
 
     def append_entry(self, entry):
+        logger.debug("Appending entry to DB")
         new_df = pandas.DataFrame.from_dict([entry])
         if type(self.paper_db) != pandas.DataFrame:
             self.paper_db = new_df
             return
         self.paper_db = self.paper_db.set_index('key').combine_first(new_df.set_index('key')).reset_index()
+        logger.debug(f"Appended entry to DB")
 
 
 ##
@@ -185,6 +187,7 @@ def extract_yaml(markdown: list[str]):
     yaml_text = ''.join(markdown[:yaml_end])
     metadata = yaml.safe_load(yaml_text)
 
+    logger.debug(f"> Extracted metadata: {metadata}")
     return metadata, ''.join(markdown[yaml_end+1:])
 
 def extract_bibtex(body: str):
@@ -195,13 +198,15 @@ def extract_bibtex(body: str):
     try:
         entry = bibtexparser.parse_string(match[0]).entries[0]
         fields_dict = entry.fields_dict
-
-        return {
+        bibtex = {
             'bibtex_key': entry.key,
             'title': fields_dict['title'].value,
             'author': fields_dict['author'].value.split(' and '),
             'year' : int(fields_dict['year'].value)
         }
+
+        logger.debug(f"> Extracted BibTeX entry: {bibtex}")
+        return bibtex
     except:
         logger.debug("> No BibTeX entry found")
         return {}
@@ -211,7 +216,7 @@ def extract_bibtex(body: str):
 # Query arXiv
 arxiv_client = arxiv.Client()
 
-def process_arxiv_result(results, title):
+def _process_arxiv_result(results, title):
     try:
         result = next(results)
     except:
@@ -241,7 +246,7 @@ def _fetch_arxiv_data(query_str, title):
     logger.debug("> Sent arXiv API request")
     results = arxiv_client.results(search)
     logger.debug("> Received arXiv API response")
-    return process_arxiv_result(results, title)
+    return _process_arxiv_result(results, title)
 
 def query_arxiv_title(title, author):
     logger.debug("Getting data from arXiv by title/author")
@@ -258,7 +263,7 @@ def query_arxiv_doi(doi, title):
 
 ##
 # Query Crossref
-def send_crossref_request(title, author=None, check=False):
+def _send_crossref_request(title, author=None, check=False):
     logger.debug(f"> Query: {title}")
     query = {"query.title": clean_text(title)}
     if author:
@@ -280,9 +285,10 @@ def send_crossref_request(title, author=None, check=False):
             logger.info("\033[33mSkipped\033[0m reference")
             return None, None
     
+    logger.debug(f"> Successfully fetched paper: {fetched}")
     return result.get("DOI"), result.get("reference")
 
-def create_crossref_reference(reference):
+def _create_crossref_reference(reference):
     if not reference:
         return None
     for r in reference:
@@ -291,20 +297,20 @@ def create_crossref_reference(reference):
         if r.get("DOI"):
             yield r.get("DOI")
         else:
-            doi, _ = send_crossref_request(r.get("article-title"), r.get("author"))
+            doi, _ = _send_crossref_request(r.get("article-title"), r.get("author"))
             if doi:
                 yield doi
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
-    doi, reference = send_crossref_request(title, author, check=True)
-    return doi, list(create_crossref_reference(reference))
+    doi, reference = _send_crossref_request(title, author, check=True)
+    return doi, list(_create_crossref_reference(reference))
 
 def query_crossref_doi(doi, title):
     logger.debug("Getting data from Crossref")
     try:
         result = get_publication_as_json(doi)
-        return doi, list(create_crossref_reference(result.get("reference")))
+        return doi, list(_create_crossref_reference(result.get("reference")))
     except:
         logger.error("> Failed to query Crossref")
         return None, None
@@ -352,6 +358,7 @@ def _fetch_ads_data(query_str, title):
         doi = verify_entry(first_doc.get('doi'))
         abstract = first_doc.get('abstract')
 
+        logger.debug(f"> Successfully fetched paper: {fetched}")
         return doi, abstract, references, bibcode
 
     except requests.exceptions.RequestException as e:
@@ -497,7 +504,6 @@ CHAT_MODEL = chat_model_name = "gpt-4o-mini"
 endpoint = "https://models.inference.ai.azure.com"
 client = OpenAI(base_url=endpoint, api_key=TOKEN)
 
-
 def embedding(text: list[str]):
     logger.debug("Embedding texts")
     logger.debug("> Sending OpenAI embedding API request")
@@ -506,17 +512,17 @@ def embedding(text: list[str]):
         model = EMBEDDING_MODEL,
     )
     logger.debug("> Recieved OpenAI embedding API responce")
-    logger.debug(embedding_response.usage)
+    logger.debug("> " + embedding_response.usage)
 
     embeddings = []
     for data in embedding_response.data:
         embeddings.append(np.array(data.embedding))
     
-    logger.debug("Created embedding vector")
+    logger.debug("> Created embedding vector")
     return embeddings
 
 def keyword_extraction(text: str, example = None) -> list[str]:
-    logger.debug("Creating keywords")
+    logger.debug("> Creating keywords with GPT")
     GPT_INSTRUCTIONS = f"""
 This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
 It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
@@ -541,8 +547,8 @@ Return the list in json format with key "keywords" for keyword list.
         messages = messages,
         response_format = { "type": "json_object" }
     )
-    logger.debug("Recieved OpenAI completion API responce")
-    logger.debug(completion.usage)
+    logger.debug("> Recieved OpenAI completion API responce")
+    logger.debug("> " + completion.usage)
 
     chat_response = completion.choices[0].message
     json_data = json.loads(chat_response.content)
@@ -559,12 +565,24 @@ Return the list in json format with key "keywords" for keyword list.
             logger.fatal("\033[31mABORTED\033[0m")
             exit()
 
+    logger.debug("> Created keywords")
     return keywords
 
 
 ##
 # Data processing
 from datetime import datetime
+
+def generate_key(metadata):
+    author_last_name = metadata["author"][0].split(',')[0].lower()
+    year = metadata["year"]
+
+    title_words = metadata["title"].split()
+    title_first_word = title_words[0].lower()
+    title_first_char = (''.join([word[0] for word in title_words])).lower()
+
+    return f"{author_last_name}.{year}.{title_first_word}.{title_first_char}"
+
 def create_embedding(text:dict):
     logger.debug("Creating embeddings")
     text = {k: v for k, v in text.items() if v is not None}
@@ -609,7 +627,7 @@ def organize_db_entry(data, metadata, embeddings, keywords):
     entry["arxiv_id"] = data["arxiv_id"]
     entry["bibcode"] = data["ads_bibcode"]
     entry["doi"] = []#TODO
-    entry["bibtex"] = metadata["key"]#TODO
+    entry["key"] = metadata["key"]#TODO
 
     # References
     entry["ref_doi"] = data["crossref_reference"]
@@ -670,7 +688,7 @@ markdown = read_file_lines(args.filename)
 metadata_yaml, body = extract_yaml(markdown)
 metadata_bibtex = extract_bibtex(body)
 metadata = metadata_yaml | metadata_bibtex
-metadata["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
+metadata["key"] = generate_key(metadata)
 
 query_title = metadata.get("title") or metadata.get("name") or args.filename
 
@@ -709,14 +727,4 @@ write_file(args.filename, md_content)
 new_entry = organize_db_entry(data, metadata, embeddings, keywords)
 DB.append_entry(new_entry)
 DB.save()
-
-# process_article(
-#     "Deep residual learning for image recognition",
-#     ["He, Kaiming"]
-# )
-
-# process_article(
-#     "Deep learning-based super-resolution climate simulator-emulator framework for urban heat studies",
-#     ["Wu, Yuankai"]
-# )
-
+ 
