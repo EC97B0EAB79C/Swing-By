@@ -1,16 +1,31 @@
 #!/usr/bin/env python
 
-
-##
-# Global parameters
-import os
+# Standard library imports
 import logging
+import os
+import re
+
+# Third-party imports
+import bibtexparser
+import pandas
+import yaml
+import json
+import numpy as np
+# Query related
+import arxiv
+from crossref_commons.iteration import iterate_publications_as_json
+from crossref_commons.retrieval import get_publication_as_json
+import requests
+# OpenAI related
+from openai import OpenAI
 
 # Global Parameters
 N = 10
 RATIO = 0.4
-DB_LOCATION = os.environ.get("PAPER_REL_DB")
+# DB_LOCATION = os.environ.get("PAPER_REL_DB")
+DB_LOCATION = "./test/test.h5"
 TOKEN = os.environ["GITHUB_TOKEN"]
+ADS_API_KEY = os.environ["ADS_API_KEY"]
 
 
 # Warning Messages
@@ -32,9 +47,8 @@ def process_warning(message, abort = False):
         
 
 ##
-# Argement Parser
+# Set up argument parser and logging
 import argparse
-
 parser = argparse.ArgumentParser(
     prog='paper_rel_gen',
     description='Processes markdown notes with BibTeX to add metadata to paper notes.'
@@ -67,8 +81,6 @@ if (not args.keyword_only) and (not DB_LOCATION):
     logging.error("\033[31mABORTED\033[0m")
     exit(1)
 
-
-##
 # Set logger
 level = logging.DEBUG if args.debug else logging.INFO
 logging.basicConfig()
@@ -87,54 +99,69 @@ def same_text(text1, text2):
     clean_text2 = clean_text(text2)
     return SequenceMatcher(None, clean_text1, clean_text2).ratio() > 0.99
 
+def check_title(title1, title2, message, abort=False):
+    if same_text(title1, title2):
+        return True
+    return process_warning(message, abort)
+
+def verify_entry(value):
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return verify_entry(value[0])
+    else:
+        return ""
+
 ##
-# DB related
-# Entries: 
-# - paper: title, author, year, bibtex_key, doi, keywords, filename, 
+# DB
+# PaperDB: key, title, author, year, bibtex_key, doi, bibcode, keywords, filename, 
 #       title_embedding, summary_embedding, body_embedding
-# - ref: doi, referenced_at
-import pandas
+# RefDB: key, doi_ref, bibcode_ref
+class PaperDB:
+    def __init__(self):
+        self.paper_db = None
+        self.ref_db = pandas.DataFrame(columns=['doi', 'doi_ref', 'bibcode_ref'])
+        self.load()
 
-paper_db = None
-ref_db = pandas.DataFrame()
-def load_db():
-    global paper_db, ref_db
-    logger.debug("Loading DB")
-    try:
-        paper_db = pandas.read_hdf(DB_LOCATION, key='paper')
-        # ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
-        logger.debug(f"Loaded {len(paper_db.index)} entries from DB")
-    except Exception as e:
-        logger.error(e)
-        process_warning(DB_WARNING_TEXT, abort=True)
+    def load(self):
+        logger.debug("Loading DB")
+        try:
+            self.paper_db = pandas.read_hdf(DB_LOCATION, key='paper')
+            self.ref_db = pandas.read_hdf(DB_LOCATION, key='ref')
+            logger.debug(f"Loaded {len(self.paper_db.index)} entries from DB")
+        except Exception as e:
+            logger.error(e)
+            process_warning(DB_WARNING_TEXT, abort=True)
 
-def save_db():
-    global paper_db, ref_db
-    logger.debug("Saving DB")
-    try:
-        paper_db.to_hdf(DB_LOCATION, key='paper', mode='w')
-        # ref_db.to_hdf(DB_LOCATION, key='ref', mode='w')
-    except Exception as e: 
-        logger.error("Error when saving to DB")
-        logger.error(e)
-        exit()
-    logger.info(f"Saved {len(paper_db.index)} entries to DB")
+    def save(self):
+        logger.debug("Saving DB")
+        try:
+            with pandas.HDFStore(DB_LOCATION, mode='w') as store:
+                store.put('paper', self.paper_db)
+                store.put('ref', self.ref_db)
+        except Exception as e:
+            logger.error("Error when saving to DB")
+            logger.error(e)
+            exit()
+        logger.info(f"Saved {len(self.paper_db.index)} entries to DB")
 
-def append_entry(entry):
-    global paper_db, ref_db
-    new_df = pandas.DataFrame.from_dict([entry])
-    if type(paper_db) != pandas.DataFrame:
-        paper_db = new_df
-        return
-    paper_db = paper_db.set_index('key').combine_first(new_df.set_index('key')).reset_index()
+    def append_entry(self, entry):
+        logger.debug("Appending entry to DB")
+        new_df = pandas.DataFrame.from_dict([entry])
+        if type(self.paper_db) != pandas.DataFrame:
+            self.paper_db = new_df
+            return
+        self.paper_db = self.paper_db.set_index('key').combine_first(new_df.set_index('key')).reset_index()
+        logger.debug(f"Appended entry to DB")
+
 
 ##
 # File read/write
-def read_file(path):
+def read_file_lines(path):
     logger.debug(f"Reading file: {path}")
     with open(path, 'r') as file:
-        markdown = file.readlines()
-    return markdown
+        lines = file.readlines()
+    return lines
 
 def write_file(path, data):
     logger.debug(f"Writing file: {path}")
@@ -144,10 +171,6 @@ def write_file(path, data):
 
 ##
 # Process file
-import yaml
-import re
-import bibtexparser
-
 def extract_yaml(markdown: list[str]):
     logger.debug("Extracting yaml metadata")
     while markdown[0].strip() =='':
@@ -164,6 +187,7 @@ def extract_yaml(markdown: list[str]):
     yaml_text = ''.join(markdown[:yaml_end])
     metadata = yaml.safe_load(yaml_text)
 
+    logger.debug(f"> Extracted metadata: {metadata}")
     return metadata, ''.join(markdown[yaml_end+1:])
 
 def extract_bibtex(body: str):
@@ -174,60 +198,72 @@ def extract_bibtex(body: str):
     try:
         entry = bibtexparser.parse_string(match[0]).entries[0]
         fields_dict = entry.fields_dict
-
-        return {
+        bibtex = {
             'bibtex_key': entry.key,
             'title': fields_dict['title'].value,
             'author': fields_dict['author'].value.split(' and '),
             'year' : int(fields_dict['year'].value)
         }
+
+        logger.debug(f"> Extracted BibTeX entry: {bibtex}")
+        return bibtex
     except:
         logger.debug("> No BibTeX entry found")
         return {}
 
 
 ##
-# Get data from arxiv
-import arxiv
-
+# Query arXiv
 arxiv_client = arxiv.Client()
 
-def query_arxiv(title, author):
-    logger.debug("Getting data from arXiv")
-    clean_title = clean_text(title)
-    clean_author = clean_text(author)
+def _process_arxiv_result(results, title):
+    try:
+        result = next(results)
+    except:
+        logger.debug(f"> Failed to fetch from arXiv")
+        return None, None, None
     
+    fetched = result.title
+    if not check_title(
+        title,
+        fetched,
+        QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
+    ):
+        logger.info("\033[33mSkipped\033[0m summary")
+        return None, None, None
+    
+    logger.debug(f"> Successfully fetched paper: {fetched}")
+    return result.entry_id.split('/')[-1], result.summary, result.doi
+
+def _fetch_arxiv_data(query_str, title):
+    logger.debug(f"> Querying arXiv with query={query_str}")
+
     search = arxiv.Search(
-        query = f"{clean_title} AND {clean_author}",
+        query = query_str,
         max_results = 1,
         sort_by = arxiv.SortCriterion.Relevance
     )
     logger.debug("> Sent arXiv API request")
     results = arxiv_client.results(search)
-    logger.debug("> Recieved arXiv API responce")
-    try:
-        result = next(results)
-    except:
-        logger.debug(f"> Failed to fetch from arXiv: {title}")
-        return None, None, None,
+    logger.debug("> Received arXiv API response")
+    return _process_arxiv_result(results, title)
 
-    fetched = result.title
-    if not same_text(title, fetched):
-        if not process_warning(
-            QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
-        ):
-            logger.info("\033[33mSkipped\033[0m summary")
-            return None, None, None
-        
-    return result.summary, result.doi, result.entry_id
+def query_arxiv_title(title, author):
+    logger.debug("Getting data from arXiv by title/author")
+    q = f"{clean_text(title)} AND {clean_text(author)}"
+
+    return _fetch_arxiv_data(q, title)
+
+def query_arxiv_doi(doi, title):
+    logger.debug(f"Getting data from arXiv for DOI: {doi}")
+    q = f"{doi}"
+
+    return _fetch_arxiv_data(q, title)
 
 
 ##
-# Get data from Crossref
-from crossref_commons.iteration import iterate_publications_as_json
-from crossref_commons.retrieval import get_publication_as_json
-
-def query_crossref_title(title, author=None, check=False):
+# Query Crossref
+def _send_crossref_request(title, author=None, check=False):
     logger.debug(f"> Query: {title}")
     query = {"query.title": clean_text(title)}
     if author:
@@ -235,8 +271,8 @@ def query_crossref_title(title, author=None, check=False):
     try:
         result = next(iterate_publications_as_json(max_results=1,queries=query))
         fetched = result["title"][0]
-    except:
-        logger.error("> Failed to query Crossref")
+    except Exception as e:
+        logger.error(f"> Failed to query Crossref: {str(e)}")
         return None, None
     
     if not same_text(title, fetched):
@@ -248,51 +284,220 @@ def query_crossref_title(title, author=None, check=False):
         ):
             logger.info("\033[33mSkipped\033[0m reference")
             return None, None
-        
-    return result.get("DOI"), result.get("reference")
     
-def query_crossref_doi(doi):
-    logger.debug(f"> Query: {doi}")
+    logger.debug(f"> Successfully fetched paper: {fetched}")
+    return result.get("DOI"), result.get("reference")
+
+def _create_crossref_reference(reference):
+    if not reference:
+        return None
+    for r in reference:
+        if not r.get("article-title"):
+            continue
+        if r.get("DOI"):
+            yield r.get("DOI")
+        else:
+            doi, _ = _send_crossref_request(r.get("article-title"), r.get("author"))
+            if doi:
+                yield doi
+
+def query_crossref_title(title, author=None):
+    logger.debug("Getting data from Crossref")
+    doi, reference = _send_crossref_request(title, author, check=True)
+    return doi, list(_create_crossref_reference(reference))
+
+def query_crossref_doi(doi, title):
+    logger.debug("Getting data from Crossref")
     try:
         result = get_publication_as_json(doi)
-        return result.get("reference")
+        return doi, list(_create_crossref_reference(result.get("reference")))
     except:
         logger.error("> Failed to query Crossref")
-        return None
-
-def get_doi(title, author):
-    if not title:
-        return None
-    doi, _ = query_crossref_title(title, author)
-    return doi
-
-def query_crossref(title, author, doi=None):
-    logger.debug("Getting data from Crossref")
-    result = query_crossref_title(title, author, True)
-
-    doi = doi or result[0]
-    if doi is None:
         return None, None
     
-    ref = result[1] or query_crossref_doi(doi)
-    if not ref:
-        return doi, None
 
-    ref_doi = []
-    for r in ref:
-        if r.get("DOI"):
-            ref_doi.append(r.get("DOI"))
-        else:
-            ref_doi.append(get_doi(r.get("article-title"), r.get("author")))
+##
+# Query ADS
+ADS_ENDPOINT = "https://api.adsabs.harvard.edu/v1/search/query"
 
-    return doi, [i for i in ref_doi if i is not None]
+def _fetch_ads_data(query_str, title):
+    logger.debug(f"> Querying ADS with query={query_str}")
+
+    headers = {
+        "Authorization": f"Bearer {ADS_API_KEY}"
+    }
+    params = {
+        "q": query_str,
+        "fl": "reference,bibcode,doi,abstract,title"
+    }
+
+    try:
+        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
+        response.raise_for_status()
+        if b"<!DOCTYPE html>" in response.content:
+            raise requests.exceptions.RequestException("ADS is currently under maintenance")
+        data = response.json()
+
+        docs = data.get('response', {}).get('docs', [])
+        if not docs:
+            return None, None, None, None
+
+        first_doc = docs[0]
+        fetched = verify_entry(first_doc.get('title'))
+
+        if not check_title(
+            title, 
+            fetched, 
+            QUERY_WARNING_TEXT.format(service="ADS", query=title, fetched=fetched)
+        ):
+            logger.info("\033[33mSkipped\033[0m reference")
+            return None, None, None, None
+
+        references = first_doc.get('reference', [])
+        bibcode = first_doc.get('bibcode')
+        doi = verify_entry(first_doc.get('doi'))
+        abstract = first_doc.get('abstract')
+
+        logger.debug(f"> Successfully fetched paper: {fetched}")
+        return doi, abstract, references, bibcode
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"> Failed to query ADS: {str(e)}")
+        return None, None, None, None
+
+def query_ads_title(title, author=None):
+    logger.debug("Getting data from ADS by title/author")
+    q = f"{clean_text(title)}"
+    if author:
+        q += f" AND {clean_text(author)}"
+
+    return _fetch_ads_data(q, title)
+
+def query_ads_arxiv(arxiv_id, title):
+    logger.debug(f"Getting data from ADS for arXiv: {arxiv_id}")
+    q = f"arXiv:{arxiv_id}"
+    
+    return _fetch_ads_data(q, title)
+
+def query_ads_doi(doi, title):
+    logger.debug(f"Getting data from ADS for DOI: {doi}")
+    q = f"doi:{doi}"
+
+    return _fetch_ads_data(q, title)
+
+
+##
+# Process Article
+def process_article(title, author):
+    data = {
+        "arxiv_id": None,
+        "summary": None,
+        "arxiv_doi": None,
+        "crossref_doi": None,
+        "crossref_reference": None,
+        "ads_doi": None,
+        "ads_abstract": None,
+        "ads_reference": None,
+        "ads_bibcode": None,
+    }
+
+    _update_arxiv_title(data, title, author)
+    _update_crossref_title(data, title, author)
+    _update_ads_title(data, title, author)
+
+    _fill_missing_arxiv_data(data, title)
+    _fill_missing_crossref_data(data, title)
+    _fill_missing_ads_data(data, title)
+
+    return data
+
+def _update_arxiv_title(data, title, author):
+    arxiv_id, summary, arxiv_doi = query_arxiv_title(title, author)
+    data["arxiv_id"] = arxiv_id
+    data["summary"] = summary
+    data["arxiv_doi"] = arxiv_doi
+
+def _update_crossref_title(data, title, author):
+    crossref_doi, crossref_reference = query_crossref_title(title, author)
+    data["crossref_doi"] = crossref_doi
+    data["crossref_reference"] = crossref_reference
+
+def _update_ads_title(data, title, author):
+    ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_title(title, author)
+    data["ads_doi"] = ads_doi
+    data["ads_abstract"] = ads_abstract
+    data["ads_reference"] = ads_reference
+    data["ads_bibcode"] = ads_bibcode
+
+def _fill_missing_arxiv_data(data, fallback_title):
+    if data["arxiv_id"]:
+        return
+
+    if data["crossref_doi"]:
+        arxiv_id, summary, arxiv_doi = query_arxiv_doi(data["crossref_doi"], fallback_title)
+        if arxiv_id:
+            data["arxiv_id"] = arxiv_id
+            data["summary"] = summary
+            data["arxiv_doi"] = arxiv_doi
+            return
+
+    if data["ads_doi"]:
+        arxiv_id, summary, arxiv_doi = query_arxiv_doi(data["ads_doi"], fallback_title)
+        if arxiv_id:
+            data["arxiv_id"] = arxiv_id
+            data["summary"] = summary
+            data["arxiv_doi"] = arxiv_doi
+
+def _fill_missing_crossref_data(data, fallback_title):
+    if data["crossref_reference"]:
+        return
+
+    if data["arxiv_doi"]:
+        crossref_doi, crossref_reference = query_crossref_doi(data["arxiv_doi"], fallback_title)
+        if crossref_reference:
+            data["crossref_doi"] = crossref_doi
+            data["crossref_reference"] = crossref_reference
+            return
+
+    if data["ads_doi"]:
+        crossref_doi, crossref_reference = query_crossref_doi(data["ads_doi"], fallback_title)
+        if crossref_reference:
+            data["crossref_doi"] = crossref_doi
+            data["crossref_reference"] = crossref_reference
+
+def _fill_missing_ads_data(data, fallback_title):
+    if data["ads_bibcode"]:
+        return
+
+    if data["arxiv_doi"]:
+        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_doi(data["arxiv_doi"], fallback_title)
+        if ads_bibcode:
+            data["ads_doi"] = ads_doi
+            data["ads_abstract"] = ads_abstract
+            data["ads_reference"] = ads_reference
+            data["ads_bibcode"] = ads_bibcode
+            return
+
+    if data["crossref_doi"]:
+        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_doi(data["crossref_doi"], fallback_title)
+        if ads_bibcode:
+            data["ads_doi"] = ads_doi
+            data["ads_abstract"] = ads_abstract
+            data["ads_reference"] = ads_reference
+            data["ads_bibcode"] = ads_bibcode
+            return
+
+    if not data["ads_bibcode"] and data["arxiv_id"]:
+        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_arxiv(data["arxiv_id"], fallback_title)
+        if ads_bibcode:
+            data["ads_doi"] = ads_doi
+            data["ads_abstract"] = ads_abstract
+            data["ads_reference"] = ads_reference
+            data["ads_bibcode"] = ads_bibcode
 
 
 ##
 # OpenAI API
-from openai import OpenAI
-import numpy as np
-import json
 EMBEDDING_MODEL = "text-embedding-3-small"
 CHAT_MODEL = chat_model_name = "gpt-4o-mini"
 
@@ -307,17 +512,17 @@ def embedding(text: list[str]):
         model = EMBEDDING_MODEL,
     )
     logger.debug("> Recieved OpenAI embedding API responce")
-    logger.debug(embedding_response.usage)
+    logger.debug("> " + embedding_response.usage)
 
     embeddings = []
     for data in embedding_response.data:
         embeddings.append(np.array(data.embedding))
     
-    logger.debug("Created embedding vector")
+    logger.debug("> Created embedding vector")
     return embeddings
 
 def keyword_extraction(text: str, example = None) -> list[str]:
-    logger.debug("Creating keywords")
+    logger.debug("> Creating keywords with GPT")
     GPT_INSTRUCTIONS = f"""
 This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
 It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
@@ -342,8 +547,8 @@ Return the list in json format with key "keywords" for keyword list.
         messages = messages,
         response_format = { "type": "json_object" }
     )
-    logger.debug("Recieved OpenAI completion API responce")
-    logger.debug(completion.usage)
+    logger.debug("> Recieved OpenAI completion API responce")
+    logger.debug("> " + completion.usage)
 
     chat_response = completion.choices[0].message
     json_data = json.loads(chat_response.content)
@@ -360,12 +565,24 @@ Return the list in json format with key "keywords" for keyword list.
             logger.fatal("\033[31mABORTED\033[0m")
             exit()
 
+    logger.debug("> Created keywords")
     return keywords
 
 
 ##
 # Data processing
 from datetime import datetime
+
+def generate_key(metadata):
+    author_last_name = metadata["author"][0].split(',')[0].lower()
+    year = metadata["year"]
+
+    title_words = metadata["title"].split()
+    title_first_word = title_words[0].lower()
+    title_first_char = (''.join([word[0] for word in title_words])).lower()
+
+    return f"{author_last_name}.{year}.{title_first_word}.{title_first_char}"
+
 def create_embedding(text:dict):
     logger.debug("Creating embeddings")
     text = {k: v for k, v in text.items() if v is not None}
@@ -378,7 +595,7 @@ def get_keyword_example(embeddings):
     logger.debug("Getting keyword examples")
     keys = set()
     keyword_example = set()
-    similarity_df = paper_db.copy()
+    similarity_df = DB.paper_db.copy()
     
     for ent in ["embedding_title", "embedding_summary", "embedding_body"]:
         emb = embeddings.get(ent)
@@ -394,7 +611,6 @@ def get_keyword_example(embeddings):
     logger.debug(f"Related: {", ".join(keys) }")
     return list(keyword_example)
 
-
 def create_keywords(title, summary, body, keyword_example):
     logger.debug("Creating keywords")
     keyword_payload = f"title: {title}\n"
@@ -402,37 +618,47 @@ def create_keywords(title, summary, body, keyword_example):
     keyword_payload += f"body:\n{body}"
 
     return keyword_extraction(keyword_payload, keyword_example)
-    
 
-def organize_db_entry(doi, arxiv_id, metadata, embeddings):
+
+def organize_db_entry(data, metadata, embeddings, keywords):
     logger.debug("Creating DB entry")
     entry = {}
-    entry['key'] = metadata["key"]
-    entry['doi'] = doi
-    entry['arxiv_id'] = arxiv_id
+    # Keys
+    entry["arxiv_id"] = data["arxiv_id"]
+    entry["bibcode"] = data["ads_bibcode"]
+    entry["doi"] = []#TODO
+    entry["key"] = metadata["key"]#TODO
+
+    # References
+    entry["ref_doi"] = data["crossref_reference"]
+    entry["ref_bibcode"] = data["ads_reference"]
+
+    # Metadata
     entry["title"] = metadata["title"]
     entry["author"] = metadata["author"]
     entry["year"] = metadata["year"]
-    entry["category"] = metadata["category"]
-    entry["keywords"] = metadata["keywords"]
+    entry["keywords"] = keywords
+
     entry["embedding_title"] = embeddings.get("embedding_title", np.nan)
     entry["embedding_body"] = embeddings.get("embedding_body", np.nan)
     entry["embedding_summary"] = embeddings.get("embedding_summary", np.nan)
     
     return entry
 
-def organize_md_metadata(metadata):
+def organize_md_metadata(data, metadata, keywords):
     logger.debug("Creating MD metadata")
     md_metadata = {}
+    
     md_metadata["key"] = metadata["key"]
+    md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    md_metadata["created"] = str(data.get("created") or md_metadata["updated"])
+    
     md_metadata["title"] = metadata["title"]
     md_metadata["author"] = metadata["author"]
     md_metadata["year"] = metadata["year"]
-    md_metadata["category"] = metadata["category"]
-    md_metadata["tags"] = metadata["tags"]
-    md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    md_metadata["created"] = str(metadata["created"] or md_metadata["updated"])
-    
+    md_metadata["tags"] = ["Paper"] + keywords
+    md_metadata["categoty"] = keywords[0]
+
     return md_metadata
 
 def create_md_content(md_metadata, body):
@@ -440,63 +666,65 @@ def create_md_content(md_metadata, body):
 {yaml.dump(md_metadata, default_flow_style=False)}---
 {body}"""
 
+def append_reference(doi, ref_doi):
+    global ref_db
+    if doi is None or ref_doi is None:
+        return
+    for ref in ref_doi:
+        logger.debug(f"> Adding relation '{ref}' <- '{doi}'")
+        if doi in ref_db['doi'].values:
+            ref_db.loc[ref_db['doi'] == ref, 'ref'].apply(lambda x: x.append(doi))
+        else:
+            new_row = pandas.DataFrame({'doi': [ref], 'ref': [[doi]]})
+            ref_db = pandas.concat([ref_db, new_row], ignore_index=True)
+
 
 ##
-# Test Code
-load_db()
+# Processing article
+DB = PaperDB()
 
 # Process input file
-markdown = read_file(args.filename)
+markdown = read_file_lines(args.filename)
 metadata_yaml, body = extract_yaml(markdown)
 metadata_bibtex = extract_bibtex(body)
 metadata = metadata_yaml | metadata_bibtex
-metadata["key"] = ".".join(os.path.basename(args.filename).split('.')[:-1])
+metadata["key"] = generate_key(metadata)
 
-# Get summary
-summary = None
-id_arxiv = None
-if args.article:
-    summary, doi, id_arxiv = query_arxiv(metadata["title"], metadata["author"][0])
+query_title = metadata.get("title") or metadata.get("name") or args.filename
 
-# Get references
-ref_doi = None
+data = {}
 if args.article:
-    doi, ref_doi = query_crossref(metadata["title"], metadata["author"][0], doi)
-    if not ref_doi:
-        process_warning(REF_WARNING_TEXT, abort = True)
+    data = process_article(query_title, metadata["author"][0])
+
+query_summary = data.get("summary") or data.get("ads_abstract")
 
 # Create embeddings
 query_title = metadata.get("title") or metadata.get("name") or args.filename
 embeddings = create_embedding(
     {
         "title": query_title,
-        "summary": summary,
-        "body" : body
+        "summary": query_summary,
+        "body": body
     }
 )
 
 # Create keywords
 keyword_example = None
-if type(paper_db) == pandas.DataFrame:
+if type(DB.paper_db) == pandas.DataFrame:
     keyword_example = get_keyword_example(embeddings)
-keywords = create_keywords(query_title, summary, body, keyword_example)
-metadata["keywords"] = keywords
-metadata["tags"] = ["Paper"] + keywords
-metadata["category"] = keywords[0]
+keywords = create_keywords(metadata["title"], query_summary, body, keyword_example)
 
-# If keyword only mode
 if args.keyword_only:
     for keyword in keywords:
         print(f"- {keyword}")
     exit()
 
 # Write MD file
-md_metadata = organize_md_metadata(metadata)
+md_metadata = organize_md_metadata(data, metadata, keywords)
 md_content = create_md_content(md_metadata, body)
 write_file(args.filename, md_content)
 
 # Add entry to DB
-if args.article:
-    new_entry = organize_db_entry(doi, id_arxiv, metadata, embeddings)
-    append_entry(new_entry)
-    save_db()
+new_entry = organize_db_entry(data, metadata, embeddings, keywords)
+DB.append_entry(new_entry)
+DB.save()
