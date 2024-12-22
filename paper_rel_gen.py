@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
 ## TODO
-# - Change reference keys to SKey
-# - Annding DOI in entry
+# - Change reference keys to SBKey
 
 # Standard library imports
 import logging
@@ -115,6 +114,18 @@ def verify_entry(value):
         return verify_entry(value[0])
     else:
         return ""
+
+def _format_entry(string, length):
+    return string.lower().ljust(length)[:length]
+
+def generate_sbkey(title, author, year):
+    author_last_name = _format_entry(author.split(',')[0], 6)
+
+    title_words = title.split()
+    title_first_word = _format_entry(title_words[0], 6)
+    title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
+
+    return f"{author_last_name}.{year}.{title_first_word}.{title_first_char}"
 
 ##
 # DB
@@ -578,14 +589,7 @@ Return the list in json format with key "keywords" for keyword list.
 from datetime import datetime
 
 def generate_key(metadata):
-    author_last_name = metadata["author"][0].split(',')[0].lower()
-    year = metadata["year"]
-
-    title_words = metadata["title"].split()
-    title_first_word = title_words[0].lower()
-    title_first_char = (''.join([word[0] for word in title_words])).lower()
-
-    return f"{author_last_name}.{year}.{title_first_word}.{title_first_char}"
+    return generate_sbkey(metadata["title"], metadata["author"][0], metadata["year"])
 
 def create_embedding(text:dict):
     logger.debug("Creating embeddings")
@@ -630,7 +634,7 @@ def organize_db_entry(data, metadata, embeddings, keywords):
     # Keys
     entry["arxiv_id"] = data["arxiv_id"]
     entry["bibcode"] = data["ads_bibcode"]
-    entry["doi"] = []#TODO
+    entry["doi"] = data["arxiv_doi"] or data["crossref_doi"] or data["ads_doi"]
     entry["key"] = metadata["key"]
     entry["filename"] = os.path.basename(args.filename)
 
