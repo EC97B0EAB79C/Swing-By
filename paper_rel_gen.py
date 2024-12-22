@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+## TODO
+# - Change reference keys to SKey
+# - Annding DOI in entry
+
 # Standard library imports
 import logging
 import os
@@ -627,7 +631,8 @@ def organize_db_entry(data, metadata, embeddings, keywords):
     entry["arxiv_id"] = data["arxiv_id"]
     entry["bibcode"] = data["ads_bibcode"]
     entry["doi"] = []#TODO
-    entry["key"] = metadata["key"]#TODO
+    entry["key"] = metadata["key"]
+    entry["filename"] = os.path.basename(args.filename)
 
     # References
     entry["ref_doi"] = data["crossref_reference"]
