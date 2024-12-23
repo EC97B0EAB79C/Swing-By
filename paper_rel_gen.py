@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 
-## TODO
-# - Change reference keys to SBKey
-
 # Standard library imports
 import logging
 import os
@@ -116,16 +113,18 @@ def verify_entry(value):
         return ""
 
 def _format_entry(string, length):
-    return string.lower().ljust(length)[:length]
+    return string.lower().ljust(length,".")[:length]
 
 def generate_sbkey(title, author, year):
+    author = author or ""
+    year = year or ""
     author_last_name = _format_entry(author.split(',')[0], 6)
 
     title_words = title.split()
     title_first_word = _format_entry(title_words[0], 6)
     title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
 
-    return f"{author_last_name}.{year}.{title_first_word}.{title_first_char}"
+    return f"{author_last_name}{year}{title_first_word}{title_first_char}"
 
 ##
 # DB
@@ -309,12 +308,7 @@ def _create_crossref_reference(reference):
     for r in reference:
         if not r.get("article-title"):
             continue
-        if r.get("DOI"):
-            yield r.get("DOI")
-        else:
-            doi, _ = _send_crossref_request(r.get("article-title"), r.get("author"))
-            if doi:
-                yield doi
+        yield generate_sbkey(r.get("article-title"), r.get("author"), r.get("year"))
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
@@ -328,14 +322,14 @@ def query_crossref_doi(doi, title):
         return doi, list(_create_crossref_reference(result.get("reference")))
     except:
         logger.error("> Failed to query Crossref")
-        return None, None
+        return doi, None
     
 
 ##
 # Query ADS
 ADS_ENDPOINT = "https://api.adsabs.harvard.edu/v1/search/query"
 
-def _fetch_ads_data(query_str, title):
+def _fetch_ads_data(query_str, title, reference=False):
     logger.debug(f"> Querying ADS with query={query_str}")
 
     headers = {
@@ -368,7 +362,8 @@ def _fetch_ads_data(query_str, title):
             logger.info("\033[33mSkipped\033[0m reference")
             return None, None, None, None
 
-        references = first_doc.get('reference', [])
+        bibcode_references = first_doc.get('reference', [])
+        references = list(_bibcodes_to_sbkeys(bibcode_references))
         bibcode = first_doc.get('bibcode')
         doi = verify_entry(first_doc.get('doi'))
         abstract = first_doc.get('abstract')
@@ -380,25 +375,62 @@ def _fetch_ads_data(query_str, title):
         logger.error(f"> Failed to query ADS: {str(e)}")
         return None, None, None, None
 
+def _bibcode_to_sbkey(bibcode):
+    logger.debug(f"> Creating SBKey from bibcode={bibcode}")
+
+    headers = {
+        "Authorization": f"Bearer {ADS_API_KEY}"
+    }
+    params = {
+        "q": f"bibcode:{bibcode}",
+        "fl": "title,first_author,year"
+    }
+
+    try:
+        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
+        response.raise_for_status()
+        if b"<!DOCTYPE html>" in response.content:
+            raise requests.exceptions.RequestException("ADS is currently under maintenance")
+        data = response.json()
+
+        docs = data.get('response', {}).get('docs', [])
+        if not docs:
+            return None
+
+        first_doc = docs[0]
+        title = verify_entry(first_doc.get('title'))
+        author = verify_entry(first_doc.get('first_author'))
+        year = verify_entry(first_doc.get('year'))
+
+        return generate_sbkey(title, author, year)
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"> Failed to query ADS: {str(e)}")
+        return None
+
+def _bibcodes_to_sbkeys(bibcodes):
+    for bibcode in bibcodes:
+        yield _bibcode_to_sbkey(bibcode)        
+
 def query_ads_title(title, author=None):
     logger.debug("Getting data from ADS by title/author")
     q = f"{clean_text(title)}"
     if author:
         q += f" AND {clean_text(author)}"
 
-    return _fetch_ads_data(q, title)
+    return _fetch_ads_data(q, title, reference=True)
 
 def query_ads_arxiv(arxiv_id, title):
     logger.debug(f"Getting data from ADS for arXiv: {arxiv_id}")
     q = f"arXiv:{arxiv_id}"
     
-    return _fetch_ads_data(q, title)
+    return _fetch_ads_data(q, title, reference=True)
 
 def query_ads_doi(doi, title):
     logger.debug(f"Getting data from ADS for DOI: {doi}")
     q = f"doi:{doi}"
 
-    return _fetch_ads_data(q, title)
+    return _fetch_ads_data(q, title, reference=True)
 
 
 ##
@@ -639,8 +671,7 @@ def organize_db_entry(data, metadata, embeddings, keywords):
     entry["filename"] = os.path.basename(args.filename)
 
     # References
-    entry["ref_doi"] = data["crossref_reference"]
-    entry["ref_bibcode"] = data["ads_reference"]
+    entry["ref"] = list(set().union(data["crossref_reference"], data["ads_reference"]))
 
     # Metadata
     entry["title"] = metadata["title"]
