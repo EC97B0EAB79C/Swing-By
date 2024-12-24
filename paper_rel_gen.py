@@ -117,10 +117,10 @@ def _format_entry(string, length):
 
 def generate_sbkey(title, author, year):
     author = author or ""
-    year = year or ""
+    year = _format_entry(str(year or ""), 4)
     author_last_name = _format_entry(author.split(',')[0], 6)
 
-    title_words = title.split()
+    title_words = clean_text(title).split()
     title_first_word = _format_entry(title_words[0], 6)
     title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
 
@@ -200,6 +200,9 @@ def extract_yaml(markdown: list[str]):
 
     yaml_text = ''.join(markdown[:yaml_end])
     metadata = yaml.safe_load(yaml_text)
+    if metadata.get("author"):
+        author = metadata["author"]
+        metadata["author"] = author if isinstance(author, list) else [author]
 
     logger.debug(f"> Extracted metadata: {metadata}")
     return metadata, ''.join(markdown[yaml_end+1:])
