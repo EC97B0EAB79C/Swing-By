@@ -671,7 +671,7 @@ def organize_db_entry(data, metadata, embeddings, keywords):
     entry["filename"] = os.path.basename(args.filename)
 
     # References
-    entry["ref"] = list(set().union(data["crossref_reference"], data["ads_reference"]))
+    entry["ref"] = list(set().union(data["crossref_reference"] or [], data["ads_reference"] or []))
 
     # Metadata
     entry["title"] = metadata["title"]
