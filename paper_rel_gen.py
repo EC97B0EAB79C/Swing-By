@@ -620,6 +620,11 @@ Return the list in json format with key "keywords" for keyword list.
 
 #TODO create SBKey from uostructured reference
 def unstructured_reference_to_sbkey(reference_string):
+    GPT_INSTRUCTIONS = """
+This GPT specializes in parsing unstructured strings of academic references and extracting key components such as the first author's name (formatted as "last_name, first_name"), the title of the work, and the publication year.
+It presents this information in a structured JSON format.
+Responses are concise, focused on accurately extracting and formatting the data, and handle common variations in citation styles.
+"""
     pass
 
 ##
