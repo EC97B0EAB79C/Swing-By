@@ -618,6 +618,9 @@ Return the list in json format with key "keywords" for keyword list.
     logger.debug("> Created keywords")
     return keywords
 
+#TODO create SBKey from uostructured reference
+def unstructured_reference_to_sbkey(reference_string):
+    pass
 
 ##
 # Data processing
@@ -675,6 +678,7 @@ def organize_db_entry(data, metadata, embeddings, keywords):
 
     # References
     entry["ref"] = list(set().union(data["crossref_reference"] or [], data["ads_reference"] or []))
+    entry["cited_by"] = []
 
     # Metadata
     entry["title"] = metadata["title"]

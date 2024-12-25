@@ -4,7 +4,6 @@
 import logging
 import os
 
-
 # Global variables
 DB_LOCATION = os.environ.get("DB_LOCATION")
 
@@ -34,6 +33,7 @@ logger = logging.getLogger(__name__)
 ##
 # DB
 class PaperDB:
+    #TODO DB Related functions
     def __init__(self):
         self.path = DB_LOCATION
         self.df = None
@@ -44,36 +44,48 @@ class PaperDB:
     def save(self):
         pass
 
+    def update(self, entry):
+        pass
+
     def search(self, query):
-        pass
-
-class Connections:
-    def __init__(self, db):
-        self.references = {}
-        self.db = db
-        self._load()
-        self._generate()
-
-    def _load(self):
-        pass
-
-    def _generate(self):
-        pass
-
-    def get_references(self, entry):
-        pass
-
-    def get_citations(self, entry):
         pass
 
 
 ##
+# Reference Map
+class RelationMap:
+    #TODO Reference Map Related functions
+    def __init__(self, db):
+        self.db = db
+
+    def add_reference(self, from_key, to_key):
+        pass
+
+    def merge_keywords(self):
+        merge_list = self._get_merge_list()
+        self._modify_keywords(merge_list)
+
+    def _get_merge_list(self):
+        pass
+
+    def _modify_keywords(self, merge_list):
+        pass
+
+    def generate_citation(self):
+        pass
+
+    def _get_citation(self, key):
+        pass
+
+##
 # Update Notes
+#TODO Adding reference to notes
 def _find_reference_section(note):
     body_before = ""
     body_after = ""
+    reference_list = []
     pass
-    return body_before, body_after
+    return body_before, reference_list, body_after
 
 
 def _create_reference_section(note, references):
