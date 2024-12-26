@@ -165,7 +165,10 @@ class PaperDB:
         if type(self.paper_db) != pandas.DataFrame:
             self.paper_db = new_df
             return
-        self.paper_db = self.paper_db.set_index('key').combine_first(new_df.set_index('key')).reset_index()
+        if new_df['key'].iloc[0] in self.paper_db['key'].values:
+            self.paper_db.update(new_df)
+        else:
+            self.paper_db = pandas.concat([self.paper_db, new_df], ignore_index=True)
         logger.debug(f"Appended entry to DB")
 
 
@@ -309,9 +312,10 @@ def _create_crossref_reference(reference):
     if not reference:
         return None
     for r in reference:
-        if not r.get("article-title"):
-            continue
-        yield generate_sbkey(r.get("article-title"), r.get("author"), r.get("year"))
+        if r.get("article-title"):
+            yield generate_sbkey(r.get("article-title"), r.get("author"), r.get("year"))
+        elif r.get("unstructured"):
+            yield unstructured_reference_to_sbkey(r.get("unstructured"))
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
@@ -549,7 +553,8 @@ def _fill_missing_ads_data(data, fallback_title):
 ##
 # OpenAI API
 EMBEDDING_MODEL = "text-embedding-3-small"
-CHAT_MODEL = chat_model_name = "gpt-4o-mini"
+KEYWORD_MODEL = "gpt-4o-mini"
+REFERECNCE_MODEL = "gpt-4o-mini"
 
 endpoint = "https://models.inference.ai.azure.com"
 client = OpenAI(base_url=endpoint, api_key=TOKEN)
@@ -593,7 +598,7 @@ Return the list in json format with key "keywords" for keyword list.
     ]
     logger.debug("> Sending OpenAI completion API request")
     completion = client.beta.chat.completions.parse(
-        model = chat_model_name,
+        model = KEYWORD_MODEL,
         messages = messages,
         response_format = { "type": "json_object" }
     )
@@ -620,12 +625,33 @@ Return the list in json format with key "keywords" for keyword list.
 
 #TODO create SBKey from uostructured reference
 def unstructured_reference_to_sbkey(reference_string):
+    logger.debug(f"Creating SBKey from unstructured reference: {reference_string}")
     GPT_INSTRUCTIONS = """
 This GPT specializes in parsing unstructured strings of academic references and extracting key components such as the first author's name (formatted as "last_name, first_name"), the title of the work, and the publication year.
 It presents this information in a structured JSON format.
+The JSON data must include the following fields: "title", "first_author", and "year".
 Responses are concise, focused on accurately extracting and formatting the data, and handle common variations in citation styles.
 """
-    pass
+    messages = [
+        {"role":"system", "content": GPT_INSTRUCTIONS},
+        {"role": "user", "content": reference_string},
+    ]
+    logger.debug("> Sending OpenAI completion API request")
+    completion = client.beta.chat.completions.parse(
+        model = REFERECNCE_MODEL,
+        messages = messages,
+        response_format = { "type": "json_object" }
+    )
+    logger.debug("> Recieved OpenAI completion API responce")
+    logger.debug(f"> {completion.usage}")
+
+    chat_response = completion.choices[0].message
+    json_data = json.loads(chat_response.content)
+
+    sbkey = generate_sbkey(json_data["title"], json_data["first_author"], json_data["year"])
+
+    logger.debug(f"> Created SBKey: {sbkey}")
+    return sbkey
 
 ##
 # Data processing
