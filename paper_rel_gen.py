@@ -623,7 +623,6 @@ Return the list in json format with key "keywords" for keyword list.
     logger.debug("> Created keywords")
     return keywords
 
-#TODO create SBKey from uostructured reference
 def unstructured_reference_to_sbkey(reference_string):
     logger.debug(f"Creating SBKey from unstructured reference: {reference_string}")
     GPT_INSTRUCTIONS = """
@@ -735,7 +734,7 @@ def organize_md_metadata(data, metadata, keywords):
     md_metadata["author"] = metadata["author"]
     md_metadata["year"] = metadata["year"]
     md_metadata["tags"] = ["Paper"] + keywords
-    md_metadata["categoty"] = keywords[0]
+    md_metadata["category"] = keywords[0]
 
     return md_metadata
 
@@ -805,3 +804,5 @@ write_file(args.filename, md_content)
 new_entry = organize_db_entry(data, metadata, embeddings, keywords)
 DB.append_entry(new_entry)
 DB.save()
+
+print(f"Created data for {metadata["key"]}")
