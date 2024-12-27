@@ -4,6 +4,9 @@
 import logging
 import os
 
+
+import pandas
+
 # Global variables
 DB_LOCATION = os.environ.get("DB_LOCATION")
 
@@ -35,19 +38,42 @@ logger = logging.getLogger(__name__)
 class PaperDB:
     #TODO DB Related functions
     def __init__(self):
-        self.path = DB_LOCATION
-        self.df = None
+        self.paper_db = None
+        self.ref_db = None
+        self.load()
 
     def load(self):
-        pass
+        logger.debug("Loading DB")
+        try:
+            self.paper_db = pandas.read_hdf(DB_LOCATION, key="paper")
+            self.ref_db = pandas.read_hdf(DB_LOCATION, key="ref")
+            logger.debug(f"Loaded {len(self.paper_db.index)} entries from DB")
+        except Exception as e:
+            logger.error(f"Error loading DB: {e}")
+            exit(1)
 
     def save(self):
-        pass
+        logger.debug("Saving DB")
+        try:
+            with pandas.HDFStore(DB_LOCATION, mode='w') as store:
+                store.put("paper", self.paper_db)
+                store.put("ref", self.ref_db)
+        except Exception as e:
+            logger.error(f"Error saving DB: {e}")
+            exit(1)
+        logger.debug(f"Saved {len(self.paper_db.index)} entries to DB")
 
-    def update(self, entry):
-        pass
+    def update(self, entry:dict):
+        logger.debug(f"Updating entry: {entry['key']}")
+        if entry['key'] in self.paper_db.index:
+            self.paper_db.loc[entry['key']] = entry
+            logger.debug(f"Updated entry with key: {entry['key']}")
+        else:
+            logger.error(f"Entry with key {entry['key']} not found in DB")
 
     def search(self, query):
+        logger.debug(f"Searching for: {query}")
+        result = self.paper_db.query(query)
         pass
 
 
