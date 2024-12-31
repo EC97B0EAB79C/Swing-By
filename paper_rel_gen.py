@@ -113,10 +113,10 @@ def verify_entry(value):
         return ""
 
 def _format_entry(string, length):
-    return string.lower().ljust(length,".")[:length]
+    return string.lower().ljust(length,".")[:length].replace(" ", ".")
 
 def generate_sbkey(title, author, year):
-    author = author or ""
+    author = clean_text(author or "")
     year = _format_entry(str(year or ""), 4)
     author_last_name = _format_entry(author.split(',')[0], 6)
 
