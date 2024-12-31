@@ -9,7 +9,8 @@ import os
 import pandas
 
 # Global variables
-DB_LOCATION = os.environ.get("DB_LOCATION")
+# DB_LOCATION = os.environ.get("DB_LOCATION")
+DB_LOCATION = "test/test.h5"
 
 ##
 # Set up argument parser and logging
@@ -117,12 +118,21 @@ class PaperDB:
 ##
 # Update Notes
 class NoteUpdater:
-    def __init__(self, note_path):
+    def __init__(self, note_path, db_entry=None):
         self.note_path = note_path
+        self.db_entry = db_entry
         with open(note_path, 'r') as f:
             self.note_lines = f.readlines()
         self.references = self._find_references()
         self.bibtex = self._find_bibtex()
+        self._merge_references()
+
+    def _merge_references(self):
+        if not self.db_entry:
+            return
+        db_references = self.db_entry['ref']
+        self.references = list(set().union(self.references, db_references))
+        self.references.sort()
 
     def _find_references(self):
         in_reference_section = False
@@ -142,6 +152,9 @@ class NoteUpdater:
 
         reference_text = "".join(self.note_lines[ref_start:ref_end])
         reference_list = re.findall(r"\[\[(.*?)\]\]", reference_text)
+
+        self.note_lines = self.note_lines[:ref_start] + self.note_lines[ref_end:]
+
         return reference_list
     
     def _find_bibtex(self):
@@ -162,6 +175,9 @@ class NoteUpdater:
             return ""
         
         bibtex_text = "".join(self.note_lines[bibtex_start+1:bibtex_end])
+
+        self.note_lines = self.note_lines[:bibtex_start] + self.note_lines[bibtex_end:]
+
         return bibtex_text
 
     def _create_reference_section(self, references):
@@ -177,16 +193,25 @@ class NoteUpdater:
     
     def _create_others_section(self):
         text = "## Others\n"
-        text += self._create_reference_section(self.references)
         text += self._create_bibtex_section(self.bibtex)
+        text += self._create_reference_section(self.references)
         return text
 
     def update_note(self):
-        #TODO Update note
-        pass
-
+        with open(self.note_path, 'w') as f:
+            f.write("".join(self.note_lines))
+            f.write(self._create_others_section())
 
 ##
 # Test code
-test = NoteUpdater(args.notebook)
-print(test._create_others_section())
+db = PaperDB()
+result = db.search("key == 'kochko2021machinmlacfd..........'")
+if result.empty:
+    logger.error("No entry found for the given key")
+    exit(1)
+entry = result.iloc[0].to_dict()
+test = NoteUpdater(
+    args.notebook,
+    entry
+)
+test.update_note()
