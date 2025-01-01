@@ -116,9 +116,11 @@ def _format_entry(string, length):
     return string.lower().ljust(length,".")[:length].replace(" ", ".")
 
 def generate_sbkey(title, author, year):
-    author = clean_text(author or "")
-    year = _format_entry(str(year or ""), 4)
-    author_last_name = _format_entry(author.split(',')[0], 6)
+    author_last_name = clean_text(author).split()[0] if author else "."
+    author_last_name = _format_entry(author_last_name, 6)
+
+    year = str(year) if isinstance(year, int) or year.isdigit() else "."
+    year = _format_entry(year, 4)
 
     title_words = clean_text(title).split()
     title_first_word = _format_entry(title_words[0], 6)
