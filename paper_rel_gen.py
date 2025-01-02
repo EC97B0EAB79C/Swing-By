@@ -137,6 +137,7 @@ class PaperDB:
     def __init__(self):
         self.paper_db = None
         self.ref_db = pandas.DataFrame(columns=['doi', 'doi_ref', 'bibcode_ref'])
+        self.article_db = None
         self.load()
 
     def load(self):
@@ -161,16 +162,13 @@ class PaperDB:
             exit()
         logger.info(f"Saved {len(self.paper_db.index)} entries to DB")
 
-    def append_entry(self, entry):
+    def append_paper_db(self, entry):
         logger.debug("Appending entry to DB")
         new_df = pandas.DataFrame.from_dict([entry])
         if type(self.paper_db) != pandas.DataFrame:
             self.paper_db = new_df
             return
-        if new_df['key'].iloc[0] in self.paper_db['key'].values:
-            self.paper_db.update(new_df)
-        else:
-            self.paper_db = pandas.concat([self.paper_db, new_df], ignore_index=True)
+        self.paper_db = pandas.concat([self.paper_db, new_df]).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
         logger.debug(f"Appended entry to DB")
 
 
@@ -804,7 +802,7 @@ write_file(args.filename, md_content)
 
 # Add entry to DB
 new_entry = organize_db_entry(data, metadata, embeddings, keywords)
-DB.append_entry(new_entry)
+DB.append_paper_db(new_entry)
 DB.save()
 
 print(f"Created data for {metadata["key"]}")
