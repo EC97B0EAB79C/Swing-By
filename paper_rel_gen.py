@@ -125,8 +125,11 @@ def generate_sbkey(title, author, year):
     title_words = clean_text(title).split()
     title_first_word = _format_entry(title_words[0], 6)
     title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
+    
+    sbkey = f"{author_last_name}{year}{title_first_word}{title_first_char}"
+    DB.append_article_db(sbkey, title, author, year)
 
-    return f"{author_last_name}{year}{title_first_word}{title_first_char}"
+    return sbkey
 
 ##
 # DB
@@ -170,6 +173,20 @@ class PaperDB:
             return
         self.paper_db = pandas.concat([self.paper_db, new_df]).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
         logger.debug(f"Appended entry to DB")
+
+    def append_article_db(self, sbkey, title, author, year):
+        logger.debug("Appending article to DB")
+        new_df = pandas.DataFrame.from_dict([{
+            "key": sbkey,
+            "title": title,
+            "author": author,
+            "year": year
+        }])
+        if type(self.article_db) != pandas.DataFrame:
+            self.article_db = new_df
+            return
+        self.article_db = pandas.concat([self.article_db, new_df]).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
+        logger.debug(f"Appended article to DB")
 
 
 ##
