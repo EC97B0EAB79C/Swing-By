@@ -326,13 +326,21 @@ def _send_crossref_request(title, author=None, check=False):
     return result.get("DOI"), result.get("reference")
 
 def _create_crossref_reference(reference):
+    unstructured_ref = []
+    sbkey_list = []
+
     if not reference:
         return None
     for r in reference:
         if r.get("article-title"):
-            yield generate_sbkey(r.get("article-title"), r.get("author"), r.get("year"))
+            sbkey_list.append(generate_sbkey(r.get("article-title"), r.get("author"), r.get("year")))
         elif r.get("unstructured"):
-            yield unstructured_reference_to_sbkey(r.get("unstructured"))
+            unstructured_ref.append(r.get("unstructured"))
+
+    if unstructured_ref:
+        sbkey_list += unstructured_reference_to_sbkey(unstructured_ref)
+
+    return sbkey_list
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
@@ -640,17 +648,18 @@ Return the list in json format with key "keywords" for keyword list.
     logger.debug("> Created keywords")
     return keywords
 
-def unstructured_reference_to_sbkey(reference_string):
-    logger.debug(f"Creating SBKey from unstructured reference: {reference_string}")
+def unstructured_reference_to_sbkey(reference_list):
+    logger.debug(f"Creating SBKey from unstructured reference:\n> {len(reference_list)} entries")
     GPT_INSTRUCTIONS = """
 This GPT specializes in parsing unstructured strings of academic references and extracting key components such as the first author's name (formatted as "last_name, first_name"), the title of the work, and the publication year.
 It presents this information in a structured JSON format.
 The JSON data must include the following fields: "title", "first_author", and "year".
+Return entries in list with key "references".
 Responses are concise, focused on accurately extracting and formatting the data, and handle common variations in citation styles.
 """
     messages = [
         {"role":"system", "content": GPT_INSTRUCTIONS},
-        {"role": "user", "content": reference_string},
+        {"role": "user", "content": "\n".join(reference_list)},
     ]
     logger.debug("> Sending OpenAI completion API request")
     completion = client.beta.chat.completions.parse(
@@ -663,11 +672,11 @@ Responses are concise, focused on accurately extracting and formatting the data,
 
     chat_response = completion.choices[0].message
     json_data = json.loads(chat_response.content)
+    structured_references = json_data["references"]
+    sbkey_list = [generate_sbkey(ref["title"], ref["first_author"], ref["year"]) for ref in structured_references]
 
-    sbkey = generate_sbkey(json_data["title"], json_data["first_author"], json_data["year"])
-
-    logger.debug(f"> Created SBKey: {sbkey}")
-    return sbkey
+    logger.debug(f"> Created {len(sbkey_list)} SBKeys")
+    return sbkey_list
 
 ##
 # Data processing
