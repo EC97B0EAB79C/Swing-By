@@ -125,6 +125,7 @@ class NoteUpdater:
             self.note_lines = f.readlines()
         self.references = self._find_references()
         self.bibtex = self._find_bibtex()
+        self.others_end = self._find_others()
         self._merge_references()
 
     def _merge_references(self):
@@ -133,6 +134,19 @@ class NoteUpdater:
         db_references = self.db_entry['ref']
         self.references = list(set().union(self.references, db_references))
         self.references.sort()
+
+    def _find_others(self):
+        in_others_section = False
+        others_end = len(self.note_lines)
+
+        for i, line in enumerate(self.note_lines):
+            if "# others" in line.strip().lower():
+                in_others_section = True
+                continue
+            if in_others_section and "#" in line.strip():
+                others_end = i
+                break
+        return others_end if in_others_section else None
 
     def _find_references(self):
         in_reference_section = False
@@ -173,7 +187,7 @@ class NoteUpdater:
         
         if not in_bibtex_section:
             return ""
-        
+             
         bibtex_text = "".join(self.note_lines[bibtex_start+1:bibtex_end])
 
         self.note_lines = self.note_lines[:bibtex_start] + self.note_lines[bibtex_end:]
@@ -184,23 +198,31 @@ class NoteUpdater:
         reference_section = "### References\n"
         for ref in references:
             reference_section += f"- [[{ref}]]\n"
-        return reference_section + "\n"
+        return reference_section.rstrip() + "\n\n"
     
     def _create_bibtex_section(self, bibtex):
         bibtex_section = "### Bibtex\n"
         bibtex_section += bibtex
-        return bibtex_section + "\n"
+        return bibtex_section.rstrip() + "\n\n"
     
-    def _create_others_section(self):
-        text = "## Others\n"
-        text += self._create_bibtex_section(self.bibtex)
+    def _create_others_content(self):
+        text = self._create_bibtex_section(self.bibtex)
         text += self._create_reference_section(self.references)
         return text
 
     def update_note(self):
+        contents = ""
+        if self.others_end:
+            contents = "".join(self.note_lines[:self.others_end])
+        else:
+            contents = "".join(self.note_lines).rstrip()
+            contents += "\n\n## Others\n"
+        contents += self._create_others_content()
+        if self.others_end:
+            contents += "".join(self.note_lines[self.others_end:])
+
         with open(self.note_path, 'w') as f:
-            f.write("".join(self.note_lines))
-            f.write(self._create_others_section())
+            f.write(contents)
 
 ##
 # Test code
