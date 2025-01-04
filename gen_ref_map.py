@@ -11,7 +11,7 @@ import pandas
 
 # Global variables
 # DB_LOCATION = os.environ.get("DB_LOCATION")
-DB_LOCATION = "test/test.h5"
+DB_LOCATION = "test/new_db.h5"
 
 ##
 # Set up argument parser and logging
@@ -93,7 +93,7 @@ class Note:
         self._merge_references()
 
     def _merge_references(self):
-        if not self.db_entry:
+        if isinstance(self.db_entry, type(None)):
             return
         db_references = self.db_entry['ref']
         self.references = list(set().union(self.references, db_references))
@@ -118,9 +118,11 @@ class Note:
         ref_end = len(self.note_lines)
         
         for i, line in enumerate(self.note_lines):
-            if "# references" in line.strip().lower():
+            if "# references" in line.strip().lower() or "# related" in line.strip().lower():
                 in_reference_section = True
                 ref_start = i
+                continue
+            if in_reference_section and "# undiscovered" in line.strip().lower():
                 continue
             if in_reference_section and "#" in line.strip():
                 ref_end = i
@@ -167,7 +169,7 @@ class Note:
                 reference_section += f"- [[{ref}]]\n"
             else:
                 undiscovered_section += f"- [[{ref}]]\n"
-        return reference_section.rstrip() + "\n" + undiscovered_section.rstrip() + "\n\n"
+        return reference_section.rstrip() + "\n\n" + undiscovered_section.rstrip() + "\n\n"
     
     def _create_bibtex_section(self, bibtex):
         bibtex_section = "### Bibtex\n"
@@ -199,8 +201,8 @@ class Notebook:
     def __init__(self, path, db):
         self.path = path
         self.db = db
+        self.keys = []
         self.notes = self._get_notes()
-        self.keys = self._get_keys()
         pass
 
     def _get_notes(self):
@@ -209,18 +211,21 @@ class Notebook:
 
         notes = []
         for file in file_list:
-            references = db.search(f"key == '{file[:-3]}'")
-            if references.empty:
+            key = os.path.basename(file)[:-3]
+            self.keys.append(key)
+
+            result = db.search(f"key == '{key}'")
+            if result.empty:
                 logger.debug(f"No entry found for the given key: {file[:-3]}")
-                continue
+                entry = None
+            else:
+                entry = result.iloc[0]
+                
 
             logger.debug(f"Processing note: {file}")
-            notes.append(Note(file, references.iloc[0].to_dict()))
+            notes.append(Note(file, entry))
 
         return notes
-
-    def _get_keys(self):
-        pass
 
     def process_notes(self):
         for note in self.notes:
@@ -228,7 +233,7 @@ class Notebook:
             self._update_note_citation(note)
 
     def _update_note_content(self, note):
-        note.update_note()
+        note.update_note(self.keys)
         pass
 
     def _update_note_citation(self,note):
