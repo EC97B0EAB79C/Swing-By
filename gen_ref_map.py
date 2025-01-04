@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 # Standard library imports
+import argparse
 import logging
 import re
 import os
-
+import glob
 
 import pandas
 
@@ -14,7 +15,6 @@ DB_LOCATION = "test/test.h5"
 
 ##
 # Set up argument parser and logging
-import argparse
 parser = argparse.ArgumentParser(
     prog='gen_ref_map',
     description='Generate reference map for acedemic papers'
@@ -79,45 +79,9 @@ class PaperDB:
         return result
 
 
-# ##
-# # Reference Map
-# class RelationMap:
-#     #TODO Reference Map Related functions
-#     def __init__(self, db):
-#         self.db = db
-
-#     def add_reference(self, from_key, to_key):
-#         pass
-
-#     def merge_keywords(self):
-#         merge_list = self._get_merge_list()
-#         self._modify_keywords(merge_list)
-
-#     def _get_merge_list(self):
-#         GPT_INSTRUCTIONS = """
-# This GPT specializes in organizing keywords for academic purposes.
-# It identifies related keywords that can be grouped or merged while respecting the academic significance of specific terms.
-# Keywords with distinct meanings or relevance in academic contexts, such as 'physics_informed_learning,' are not merged into broader terms like 'machine_learning.'
-# Instead, the system ensures that academically significant keywords retain their individuality.
-# When merging is appropriate, it creates meaningful representative terms that align with academic conventions and clarity.
-# It outputs the response in JSON format, where each key represents a chosen 'representative' keyword and the value is a list of related interchangeable keywords to merge under that representative keyword.
-# Additionally, it can create new representative keywords when merging existing ones makes sense, such as combining related but distinct terms like 'continuous_time_models' and 'discrete_time_models' into 'time_models.'
-# Keywords that do not require merging are excluded from the output, ensuring the results focus only on meaningful groupings.
-# """
-#         pass
-
-#     def _modify_keywords(self, merge_list):
-#         pass
-
-#     def generate_citation(self):
-#         pass
-
-#     def _get_citation(self, key):
-#         pass
-
 ##
 # Update Notes
-class NoteUpdater:
+class Note:
     def __init__(self, note_path, db_entry=None):
         self.note_path = note_path
         self.db_entry = db_entry
@@ -194,30 +158,35 @@ class NoteUpdater:
 
         return bibtex_text
 
-    def _create_reference_section(self, references):
+    def _create_reference_section(self, exsitng_references=None):
         reference_section = "### References\n"
-        for ref in references:
-            reference_section += f"- [[{ref}]]\n"
-        return reference_section.rstrip() + "\n\n"
+        undiscovered_section = "#### Undiscovered\n"
+
+        for ref in self.references:
+            if ref in exsitng_references:
+                reference_section += f"- [[{ref}]]\n"
+            else:
+                undiscovered_section += f"- [[{ref}]]\n"
+        return reference_section.rstrip() + "\n" + undiscovered_section.rstrip() + "\n\n"
     
     def _create_bibtex_section(self, bibtex):
         bibtex_section = "### Bibtex\n"
         bibtex_section += bibtex
         return bibtex_section.rstrip() + "\n\n"
     
-    def _create_others_content(self):
+    def _create_others_content(self, existing_references=None):
         text = self._create_bibtex_section(self.bibtex)
-        text += self._create_reference_section(self.references)
+        text += self._create_reference_section(existing_references)
         return text
 
-    def update_note(self):
+    def update_note(self, existing_references=None):
         contents = ""
         if self.others_end:
             contents = "".join(self.note_lines[:self.others_end])
         else:
             contents = "".join(self.note_lines).rstrip()
             contents += "\n\n## Others\n"
-        contents += self._create_others_content()
+        contents += self._create_others_content(existing_references)
         if self.others_end:
             contents += "".join(self.note_lines[self.others_end:])
 
@@ -225,15 +194,50 @@ class NoteUpdater:
             f.write(contents)
 
 ##
-# Test code
-db = PaperDB()
-result = db.search("key == 'kochko2021machinmlacfd..........'")
-if result.empty:
-    logger.error("No entry found for the given key")
-    exit(1)
-entry = result.iloc[0].to_dict()
-test = NoteUpdater(
-    args.notebook,
-    entry
-)
-test.update_note()
+# Notebook
+class Notebook:
+    def __init__(self, path, db):
+        self.path = path
+        self.db = db
+        self.notes = self._get_notes()
+        self.keys = self._get_keys()
+        pass
+
+    def _get_notes(self):
+        file_list = glob.glob(f"{self.path}/*.md")
+        logger.debug(f"Found {len(file_list)} notes")
+
+        notes = []
+        for file in file_list:
+            references = db.search(f"key == '{file[:-3]}'")
+            if references.empty:
+                logger.debug(f"No entry found for the given key: {file[:-3]}")
+                continue
+
+            logger.debug(f"Processing note: {file}")
+            notes.append(Note(file, references.iloc[0].to_dict()))
+
+        return notes
+
+    def _get_keys(self):
+        pass
+
+    def process_notes(self):
+        for note in self.notes:
+            self._update_note_content(note)
+            self._update_note_citation(note)
+
+    def _update_note_content(self, note):
+        note.update_note()
+        pass
+
+    def _update_note_citation(self,note):
+        #TODO: update citation in the cite DB
+        pass
+
+
+if __name__ == "__main__":
+    db = PaperDB()
+    notebook = Notebook(args.notebook, db)
+    notebook.process_notes()
+    logger.info("Done")
