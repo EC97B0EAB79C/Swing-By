@@ -23,7 +23,7 @@ from openai import OpenAI
 N = 10
 RATIO = 0.4
 # DB_LOCATION = os.environ.get("PAPER_REL_DB")
-DB_LOCATION = "./test/test.h5"
+DB_LOCATION = "./test/new_db.h5"
 TOKEN = os.environ["GITHUB_TOKEN"]
 ADS_API_KEY = os.environ["ADS_API_KEY"]
 
@@ -39,6 +39,8 @@ QUERY_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not corre
 \tDo you want to use fetched paper? (y/N):"""
 REF_WARNING_TEXT = f"\033[33mWARNING\033[0m: Failed to fetch references.\n\tDo you want to proceed? (y/N): "
 def process_warning(message, abort = False):
+    if args.script:
+        return False
     user_continue = input(message) == 'y'
     if abort and not user_continue:
         logger.fatal("\033[31mABORTED\033[0m")
@@ -72,6 +74,12 @@ parser.add_argument(
     '--debug', 
     action='store_true', 
     help='Enable debug mode'
+    )
+parser.add_argument(
+    '--script',
+    '-s',
+    action='store_true',
+    help='Run in script mode, select "N" for all warnings.'
     )
 args = parser.parse_args()
 
@@ -119,7 +127,8 @@ def generate_sbkey(title, author, year):
     author_last_name = clean_text(author).split()[0] if author else "."
     author_last_name = _format_entry(author_last_name, 6)
 
-    year = str(year) if isinstance(year, int) or year.isdigit() else "."
+    year = str(year)
+    year = year if year.isdigit() else "."
     year = _format_entry(year, 4)
 
     title_words = clean_text(title).split()
@@ -340,18 +349,18 @@ def _create_crossref_reference(reference):
     if unstructured_ref:
         sbkey_list += unstructured_reference_to_sbkey(unstructured_ref)
 
-    return sbkey_list
+    return sbkey_list or []
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
     doi, reference = _send_crossref_request(title, author, check=True)
-    return doi, list(_create_crossref_reference(reference))
+    return doi, _create_crossref_reference(reference)
 
 def query_crossref_doi(doi, title):
     logger.debug("Getting data from Crossref")
     try:
         result = get_publication_as_json(doi)
-        return doi, list(_create_crossref_reference(result.get("reference")))
+        return doi, _create_crossref_reference(result.get("reference"))
     except:
         logger.error("> Failed to query Crossref")
         return doi, None
