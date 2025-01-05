@@ -92,12 +92,21 @@ class Note:
         self.others_end = self._find_others()
         self._merge_references()
 
+    def _create_wikilink_dict(self, wikilinks):
+        result = {}
+        for wikilink in wikilinks:
+            key = wikilink.split("|")[0].split("/")[-1]
+            result[key] = wikilink
+        
+        return result
+
     def _merge_references(self):
         if isinstance(self.db_entry, type(None)):
             return
-        db_references = self.db_entry['ref']
-        self.references = list(set().union(self.references, db_references))
-        self.references.sort()
+        
+        db_references = self._create_wikilink_dict(self.db_entry['ref'])
+        self.references = db_references | self.references
+        self.references = dict(sorted(self.references.items()))
 
     def _find_others(self):
         in_others_section = False
@@ -118,7 +127,7 @@ class Note:
         ref_end = len(self.note_lines)
         
         for i, line in enumerate(self.note_lines):
-            if "# references" in line.strip().lower() or "# related" in line.strip().lower():
+            if "# references" in line.strip().lower():
                 in_reference_section = True
                 ref_start = i
                 continue
@@ -128,14 +137,14 @@ class Note:
                 ref_end = i
 
         if not in_reference_section:
-            return []
+            return {}
 
         reference_text = "".join(self.note_lines[ref_start:ref_end])
         reference_list = re.findall(r"\[\[(.*?)\]\]", reference_text)
 
         self.note_lines = self.note_lines[:ref_start] + self.note_lines[ref_end:]
 
-        return reference_list
+        return self._create_wikilink_dict(reference_list)
     
     def _find_bibtex(self):
         in_bibtex_section = False
@@ -166,9 +175,9 @@ class Note:
 
         for ref in self.references:
             if ref in exsitng_references:
-                reference_section += f"- [[{ref}]]\n"
+                reference_section += f"- [[{self.references[ref]}]]\n"
             else:
-                undiscovered_section += f"- [[{ref}]]\n"
+                undiscovered_section += f"- [[{self.references[ref]}]]\n"
         return reference_section.rstrip() + "\n\n" + undiscovered_section.rstrip() + "\n\n"
     
     def _create_bibtex_section(self, bibtex):

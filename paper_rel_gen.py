@@ -475,6 +475,11 @@ def query_ads_doi(doi, title):
 
 
 ##
+# Semantic Scholar API
+#TODO
+
+
+##
 # Process Article
 def process_article(title, author):
     data = {
