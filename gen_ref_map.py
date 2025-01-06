@@ -108,6 +108,7 @@ class Note:
         self.references = db_references | self.references
         self.references = dict(sorted(self.references.items()))
 
+    #TODO consider tags
     def _find_others(self):
         in_others_section = False
         others_end = len(self.note_lines)
@@ -116,7 +117,7 @@ class Note:
             if "# others" in line.strip().lower():
                 in_others_section = True
                 continue
-            if in_others_section and "#" in line.strip():
+            if in_others_section and "# " in line.strip():
                 others_end = i
                 break
         return others_end if in_others_section else None
@@ -133,7 +134,7 @@ class Note:
                 continue
             if in_reference_section and "# undiscovered" in line.strip().lower():
                 continue
-            if in_reference_section and "#" in line.strip():
+            if in_reference_section and "# " in line.strip():
                 ref_end = i
 
         if not in_reference_section:
@@ -156,7 +157,7 @@ class Note:
                 in_bibtex_section = True
                 bibtex_start = i
                 continue
-            if in_bibtex_section and "#" in line.strip():
+            if in_bibtex_section and "# " in line.strip():
                 bibtex_end = i
                 break
         
