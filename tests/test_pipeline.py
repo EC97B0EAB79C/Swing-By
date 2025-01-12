@@ -1,5 +1,5 @@
 import pytest
-for src.paper_rel_gen import *
+from src.paper_rel_gen import *
 
 def test_test():
     assert 1==1
