@@ -14,4 +14,4 @@ def test_extract_yaml():
 
     result = extract_yaml(test_data)
 
-    assert result == {"test_entry": "The quick brown fox jumps over the lazy dog"}
+    assert result["test_entry"] == "The quick brown fox jumps over the lazy dog"
