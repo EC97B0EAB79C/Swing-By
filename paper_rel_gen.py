@@ -23,7 +23,7 @@ from openai import OpenAI
 N = 10
 RATIO = 0.4
 # DB_LOCATION = os.environ.get("PAPER_REL_DB")
-DB_LOCATION = "./test/test.h5"
+DB_LOCATION = "./test/new_db.h5"
 TOKEN = os.environ["GITHUB_TOKEN"]
 ADS_API_KEY = os.environ["ADS_API_KEY"]
 
@@ -39,6 +39,8 @@ QUERY_WARNING_TEXT = """\033[33mWARNING\033[0m: Fetched paper might be not corre
 \tDo you want to use fetched paper? (y/N):"""
 REF_WARNING_TEXT = f"\033[33mWARNING\033[0m: Failed to fetch references.\n\tDo you want to proceed? (y/N): "
 def process_warning(message, abort = False):
+    if args.script:
+        return False
     user_continue = input(message) == 'y'
     if abort and not user_continue:
         logger.fatal("\033[31mABORTED\033[0m")
@@ -72,6 +74,12 @@ parser.add_argument(
     '--debug', 
     action='store_true', 
     help='Enable debug mode'
+    )
+parser.add_argument(
+    '--script',
+    '-s',
+    action='store_true',
+    help='Run in script mode, select "N" for all warnings.'
     )
 args = parser.parse_args()
 
@@ -113,18 +121,24 @@ def verify_entry(value):
         return ""
 
 def _format_entry(string, length):
-    return string.lower().ljust(length,".")[:length]
+    return string.lower().ljust(length,".")[:length].replace(" ", ".")
 
 def generate_sbkey(title, author, year):
-    author = author or ""
-    year = _format_entry(str(year or ""), 4)
-    author_last_name = _format_entry(author.split(',')[0], 6)
+    author_last_name = clean_text(author).split()[0] if author else "."
+    author_last_name = _format_entry(author_last_name, 6)
+
+    year = str(year)
+    year = year if year.isdigit() else "."
+    year = _format_entry(year, 4)
 
     title_words = clean_text(title).split()
     title_first_word = _format_entry(title_words[0], 6)
     title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
+    
+    sbkey = f"{author_last_name}{year}{title_first_word}{title_first_char}"
+    DB.append_article_db(sbkey, title, author, year)
 
-    return f"{author_last_name}{year}{title_first_word}{title_first_char}"
+    return sbkey
 
 ##
 # DB
@@ -135,6 +149,7 @@ class PaperDB:
     def __init__(self):
         self.paper_db = None
         self.ref_db = pandas.DataFrame(columns=['doi', 'doi_ref', 'bibcode_ref'])
+        self.article_db = None
         self.load()
 
     def load(self):
@@ -159,17 +174,28 @@ class PaperDB:
             exit()
         logger.info(f"Saved {len(self.paper_db.index)} entries to DB")
 
-    def append_entry(self, entry):
+    def append_paper_db(self, entry):
         logger.debug("Appending entry to DB")
         new_df = pandas.DataFrame.from_dict([entry])
         if type(self.paper_db) != pandas.DataFrame:
             self.paper_db = new_df
             return
-        if new_df['key'].iloc[0] in self.paper_db['key'].values:
-            self.paper_db.update(new_df)
-        else:
-            self.paper_db = pandas.concat([self.paper_db, new_df], ignore_index=True)
+        self.paper_db = pandas.concat([self.paper_db, new_df]).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
         logger.debug(f"Appended entry to DB")
+
+    def append_article_db(self, sbkey, title, author, year):
+        logger.debug("Appending article to DB")
+        new_df = pandas.DataFrame.from_dict([{
+            "key": sbkey,
+            "title": title,
+            "author": author,
+            "year": year
+        }])
+        if type(self.article_db) != pandas.DataFrame:
+            self.article_db = new_df
+            return
+        self.article_db = pandas.concat([self.article_db, new_df]).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
+        logger.debug(f"Appended article to DB")
 
 
 ##
@@ -309,24 +335,32 @@ def _send_crossref_request(title, author=None, check=False):
     return result.get("DOI"), result.get("reference")
 
 def _create_crossref_reference(reference):
+    unstructured_ref = []
+    sbkey_list = []
+
     if not reference:
         return None
     for r in reference:
         if r.get("article-title"):
-            yield generate_sbkey(r.get("article-title"), r.get("author"), r.get("year"))
+            sbkey_list.append(generate_sbkey(r.get("article-title"), r.get("author"), r.get("year")))
         elif r.get("unstructured"):
-            yield unstructured_reference_to_sbkey(r.get("unstructured"))
+            unstructured_ref.append(r.get("unstructured"))
+
+    if unstructured_ref:
+        sbkey_list += unstructured_reference_to_sbkey(unstructured_ref)
+
+    return sbkey_list or []
 
 def query_crossref_title(title, author=None):
     logger.debug("Getting data from Crossref")
     doi, reference = _send_crossref_request(title, author, check=True)
-    return doi, list(_create_crossref_reference(reference))
+    return doi, _create_crossref_reference(reference)
 
 def query_crossref_doi(doi, title):
     logger.debug("Getting data from Crossref")
     try:
         result = get_publication_as_json(doi)
-        return doi, list(_create_crossref_reference(result.get("reference")))
+        return doi, _create_crossref_reference(result.get("reference"))
     except:
         logger.error("> Failed to query Crossref")
         return doi, None
@@ -438,6 +472,11 @@ def query_ads_doi(doi, title):
     q = f"doi:{doi}"
 
     return _fetch_ads_data(q, title, reference=True)
+
+
+##
+# Semantic Scholar API
+#TODO
 
 
 ##
@@ -623,17 +662,18 @@ Return the list in json format with key "keywords" for keyword list.
     logger.debug("> Created keywords")
     return keywords
 
-def unstructured_reference_to_sbkey(reference_string):
-    logger.debug(f"Creating SBKey from unstructured reference: {reference_string}")
+def unstructured_reference_to_sbkey(reference_list):
+    logger.debug(f"Creating SBKey from unstructured reference:\n> {len(reference_list)} entries")
     GPT_INSTRUCTIONS = """
 This GPT specializes in parsing unstructured strings of academic references and extracting key components such as the first author's name (formatted as "last_name, first_name"), the title of the work, and the publication year.
 It presents this information in a structured JSON format.
 The JSON data must include the following fields: "title", "first_author", and "year".
+Return entries in list with key "references".
 Responses are concise, focused on accurately extracting and formatting the data, and handle common variations in citation styles.
 """
     messages = [
         {"role":"system", "content": GPT_INSTRUCTIONS},
-        {"role": "user", "content": reference_string},
+        {"role": "user", "content": "\n".join(reference_list)},
     ]
     logger.debug("> Sending OpenAI completion API request")
     completion = client.beta.chat.completions.parse(
@@ -646,11 +686,11 @@ Responses are concise, focused on accurately extracting and formatting the data,
 
     chat_response = completion.choices[0].message
     json_data = json.loads(chat_response.content)
+    structured_references = json_data["references"]
+    sbkey_list = [generate_sbkey(ref["title"], ref["first_author"], ref["year"]) for ref in structured_references]
 
-    sbkey = generate_sbkey(json_data["title"], json_data["first_author"], json_data["year"])
-
-    logger.debug(f"> Created SBKey: {sbkey}")
-    return sbkey
+    logger.debug(f"> Created {len(sbkey_list)} SBKeys")
+    return sbkey_list
 
 ##
 # Data processing
@@ -802,7 +842,7 @@ write_file(args.filename, md_content)
 
 # Add entry to DB
 new_entry = organize_db_entry(data, metadata, embeddings, keywords)
-DB.append_entry(new_entry)
+DB.append_paper_db(new_entry)
 DB.save()
 
 print(f"Created data for {metadata["key"]}")
