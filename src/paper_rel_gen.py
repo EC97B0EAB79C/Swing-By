@@ -27,6 +27,8 @@ DB_LOCATION = "./test/new_db.h5"
 TOKEN = os.environ["GITHUB_TOKEN"]
 ADS_API_KEY = os.environ["ADS_API_KEY"]
 
+logging.basicConfig()
+logger = logging.getLogger(__name__)
 
 # Warning Messages
 KEYWORD_WARNING_TEXT = """\033[33mWARNING\033[0m: There is error in number of keywords.
@@ -51,50 +53,50 @@ def process_warning(message, abort = False):
 ##
 # Set up argument parser and logging
 import argparse
-parser = argparse.ArgumentParser(
-    prog='paper_rel_gen',
-    description='Processes markdown notes with BibTeX to add metadata to paper notes.'
-    )
-parser.add_argument(
-    'filename',
-    help='Markdown file to process.'
-    )
-parser.add_argument(
-    '--keyword-only',
-    action='store_true',
-    help='Only prints keywords without updating DB or file.'
-    )
-parser.add_argument(
-    '--article',
-    '-a',
-    action='store_true',
-    help='Query arXiv and Crossref for article.'
-    )
-parser.add_argument(
-    '--debug', 
-    action='store_true', 
-    help='Enable debug mode'
-    )
-parser.add_argument(
-    '--script',
-    '-s',
-    action='store_true',
-    help='Run in script mode, select "N" for all warnings.'
-    )
-args = parser.parse_args()
+def setup_parser():
+    parser = argparse.ArgumentParser(
+        prog='paper_rel_gen',
+        description='Processes markdown notes with BibTeX to add metadata to paper notes.'
+        )
+    parser.add_argument(
+        'filename',
+        help='Markdown file to process.'
+        )
+    parser.add_argument(
+        '--keyword-only',
+        action='store_true',
+        help='Only prints keywords without updating DB or file.'
+        )
+    parser.add_argument(
+        '--article',
+        '-a',
+        action='store_true',
+        help='Query arXiv and Crossref for article.'
+        )
+    parser.add_argument(
+        '--debug', 
+        action='store_true', 
+        help='Enable debug mode'
+        )
+    parser.add_argument(
+        '--script',
+        '-s',
+        action='store_true',
+        help='Run in script mode, select "N" for all warnings.'
+        )
+    args = parser.parse_args()
 
-# Check if global variabble is set for DB
-if (not args.keyword_only) and (not DB_LOCATION):
-    logging.error("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
-    logging.error("\033[31mABORTED\033[0m")
-    exit(1)
+    # Check if global variabble is set for DB
+    if (not args.keyword_only) and (not DB_LOCATION):
+        logging.error("Environment variable 'PAPER_REL_DB' should be set to use vector storage.")
+        logging.error("\033[31mABORTED\033[0m")
+        exit(1)
+        
+    # Set logger
+    level = logging.DEBUG if args.debug else logging.INFO
+    logger.setLevel(level)
 
-# Set logger
-level = logging.DEBUG if args.debug else logging.INFO
-logging.basicConfig()
-logger = logging.getLogger(__name__)
-logger.setLevel(level)
-
+    return args
 
 ##
 # Utils
@@ -798,51 +800,54 @@ def append_reference(doi, ref_doi):
 
 ##
 # Processing article
-DB = PaperDB()
+if __name__ == "__main__":
+    args = setup_parser()
 
-# Process input file
-markdown = read_file_lines(args.filename)
-metadata_yaml, body = extract_yaml(markdown)
-metadata_bibtex = extract_bibtex(body)
-metadata = metadata_yaml | metadata_bibtex
-metadata["key"] = generate_key(metadata)
+    DB = PaperDB()
 
-query_title = metadata.get("title") or metadata.get("name") or args.filename
+    # Process input file
+    markdown = read_file_lines(args.filename)
+    metadata_yaml, body = extract_yaml(markdown)
+    metadata_bibtex = extract_bibtex(body)
+    metadata = metadata_yaml | metadata_bibtex
+    metadata["key"] = generate_key(metadata)
 
-data = {}
-if args.article:
-    data = process_article(query_title, metadata["author"][0])
+    query_title = metadata.get("title") or metadata.get("name") or args.filename
 
-query_summary = data.get("summary") or data.get("ads_abstract")
+    data = {}
+    if args.article:
+        data = process_article(query_title, metadata["author"][0])
 
-# Create embeddings
-embeddings = create_embedding(
-    {
-        "title": query_title,
-        "summary": query_summary,
-        "body": body
-    }
-)
+    query_summary = data.get("summary") or data.get("ads_abstract")
 
-# Create keywords
-keyword_example = None
-if type(DB.paper_db) == pandas.DataFrame:
-    keyword_example = get_keyword_example(embeddings)
-keywords = create_keywords(metadata["title"], query_summary, body, keyword_example)
+    # Create embeddings
+    embeddings = create_embedding(
+        {
+            "title": query_title,
+            "summary": query_summary,
+            "body": body
+        }
+    )
 
-if args.keyword_only:
-    for keyword in keywords:
-        print(f"- {keyword}")
-    exit()
+    # Create keywords
+    keyword_example = None
+    if type(DB.paper_db) == pandas.DataFrame:
+        keyword_example = get_keyword_example(embeddings)
+    keywords = create_keywords(metadata["title"], query_summary, body, keyword_example)
 
-# Write MD file
-md_metadata = organize_md_metadata(data, metadata, keywords)
-md_content = create_md_content(md_metadata, body)
-write_file(args.filename, md_content)
+    if args.keyword_only:
+        for keyword in keywords:
+            print(f"- {keyword}")
+        exit()
 
-# Add entry to DB
-new_entry = organize_db_entry(data, metadata, embeddings, keywords)
-DB.append_paper_db(new_entry)
-DB.save()
+    # Write MD file
+    md_metadata = organize_md_metadata(data, metadata, keywords)
+    md_content = create_md_content(md_metadata, body)
+    write_file(args.filename, md_content)
 
-print(f"Created data for {metadata["key"]}")
+    # Add entry to DB
+    new_entry = organize_db_entry(data, metadata, embeddings, keywords)
+    DB.append_paper_db(new_entry)
+    DB.save()
+
+    print(f"Created data for {metadata["key"]}")
