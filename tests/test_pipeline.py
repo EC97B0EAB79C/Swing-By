@@ -8,7 +8,7 @@ def test_test():
 def test_extract_yaml():
     test_data=[
         "---",
-        "test_entry: 'The quick brown fox jumps over the lazy dog'"
+        "test_entry: 'The quick brown fox jumps over the lazy dog'",
         "---"
     ]
 
