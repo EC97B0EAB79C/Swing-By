@@ -1,5 +1,6 @@
 openai
 bibtexparser==2.0.0b7
 pyyaml
+crossref-commons
 arxiv
 pandas
