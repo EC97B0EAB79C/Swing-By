@@ -24,7 +24,7 @@ N = 10
 RATIO = 0.4
 # DB_LOCATION = os.environ.get("PAPER_REL_DB")
 DB_LOCATION = "./test/new_db.h5"
-TOKEN = os.environ["GITHUB_TOKEN"]
+TOKEN = os.environ["MODEL_TOKEN"]
 ADS_API_KEY = os.environ["ADS_API_KEY"]
 
 
