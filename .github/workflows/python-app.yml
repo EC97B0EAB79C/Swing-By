@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  test:
 
     runs-on: ubuntu-latest
 
@@ -29,5 +29,8 @@ jobs:
         pip install pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Test with pytest
+      env:
+        GITHUB_TOKEN: ${{ secrets.MODEL_TOKEN }}
+        ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
       run: |
         pytest
