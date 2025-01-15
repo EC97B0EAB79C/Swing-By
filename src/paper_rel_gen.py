@@ -16,10 +16,10 @@ from crossref_commons.retrieval import get_publication_as_json
 import requests
 
 # Internal imports
-from .utils.file import FileUtils
-from .utils.text import TextUtils
-from .utils.md import MarkdownUtils
-from .llm_api.open import OpenAPI
+from src.utils.file import FileUtils
+from src.utils.text import TextUtils
+from src.utils.md import MarkdownUtils
+from src.llm_api.open import OpenAPI
 
 # Global Parameters
 N = 10
