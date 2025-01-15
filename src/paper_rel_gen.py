@@ -16,7 +16,10 @@ from crossref_commons.retrieval import get_publication_as_json
 import requests
 
 # Internal imports
-from llm_api.open import OpenAPI
+from .utils.file import FileUtils
+from .utils.text import TextUtils
+from .utils.md import MarkdownUtils
+from .llm_api.open import OpenAPI
 
 # Global Parameters
 N = 10
@@ -101,17 +104,8 @@ def setup_parser():
 
 ##
 # Utils
-def clean_text(text):
-    return re.sub(r"[^a-zA-Z0-9]+", ' ', text).lower()
-
-from difflib import SequenceMatcher
-def same_text(text1, text2):
-    clean_text1 = clean_text(text1)
-    clean_text2 = clean_text(text2)
-    return SequenceMatcher(None, clean_text1, clean_text2).ratio() > 0.99
-
 def check_title(title1, title2, message, abort=False):
-    if same_text(title1, title2):
+    if TextUtils.same(title1, title2):
         return True
     return process_warning(message, abort)
 
@@ -127,14 +121,14 @@ def _format_entry(string, length):
     return string.lower().ljust(length,".")[:length].replace(" ", ".")
 
 def generate_sbkey(title, author, year):
-    author_last_name = clean_text(author).split()[0] if author else "."
+    author_last_name = TextUtils.clean(author).split()[0] if author else "."
     author_last_name = _format_entry(author_last_name, 6)
 
     year = str(year)
     year = year if year.isdigit() else "."
     year = _format_entry(year, 4)
 
-    title_words = clean_text(title).split()
+    title_words = TextUtils.clean(title).split()
     title_first_word = _format_entry(title_words[0], 6)
     title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
     
@@ -203,66 +197,6 @@ class PaperDB:
 
 
 ##
-# File read/write
-def read_file_lines(path):
-    logger.debug(f"Reading file: {path}")
-    with open(path, 'r') as file:
-        lines = file.readlines()
-    return lines
-
-def write_file(path, data):
-    logger.debug(f"Writing file: {path}")
-    with open(path, 'w') as file:
-        file.write(data)
-
-
-##
-# Process file
-def extract_yaml(markdown: list[str]):
-    logger.debug("Extracting yaml metadata")
-    while markdown[0].strip() =='':
-        markdown = markdown[1:]
-    if '---' not in markdown[0].strip():
-        return {}, ''.join(markdown)
-
-    markdown = markdown[1:]
-    for idx, line in enumerate(markdown):
-        if '---' in line.strip():
-            yaml_end = idx
-            break
-
-    yaml_text = ''.join(markdown[:yaml_end])
-    metadata = yaml.safe_load(yaml_text)
-    if metadata.get("author"):
-        author = metadata["author"]
-        metadata["author"] = author if isinstance(author, list) else [author]
-
-    logger.debug(f"> Extracted metadata: {metadata}")
-    return metadata, ''.join(markdown[yaml_end+1:])
-
-def extract_bibtex(body: str):
-    logger.debug("Extracting BibTeX metadata")
-    pattern = r'```BibTeX(.*?)```'
-    match = re.findall(pattern, body, re.DOTALL | re.IGNORECASE)
-
-    try:
-        entry = bibtexparser.parse_string(match[0]).entries[0]
-        fields_dict = entry.fields_dict
-        bibtex = {
-            'bibtex_key': entry.key,
-            'title': fields_dict['title'].value,
-            'author': fields_dict['author'].value.split(' and '),
-            'year' : int(fields_dict['year'].value)
-        }
-
-        logger.debug(f"> Extracted BibTeX entry: {bibtex}")
-        return bibtex
-    except:
-        logger.debug("> No BibTeX entry found")
-        return {}
-
-
-##
 # Query arXiv
 arxiv_client = arxiv.Client()
 
@@ -300,7 +234,7 @@ def _fetch_arxiv_data(query_str, title):
 
 def query_arxiv_title(title, author):
     logger.debug("Getting data from arXiv by title/author")
-    q = f"{clean_text(title)} AND {clean_text(author)}"
+    q = f"{TextUtils.clean(title)} AND {TextUtils.clean(author)}"
 
     return _fetch_arxiv_data(q, title)
 
@@ -315,7 +249,7 @@ def query_arxiv_doi(doi, title):
 # Query Crossref
 def _send_crossref_request(title, author=None, check=False):
     logger.debug(f"> Query: {title}")
-    query = {"query.title": clean_text(title)}
+    query = {"query.title": TextUtils.clean(title)}
     if author:
         query["query.author"] = author.split(',')[0]
     try:
@@ -325,7 +259,7 @@ def _send_crossref_request(title, author=None, check=False):
         logger.error(f"> Failed to query Crossref: {str(e)}")
         return None, None
     
-    if not same_text(title, fetched):
+    if not TextUtils.same(title, fetched):
         if not check:
             logger.info("\033[33mSkipped\033[0m reference DOI")
             return None, None
@@ -459,9 +393,9 @@ def _bibcodes_to_sbkeys(bibcodes):
 
 def query_ads_title(title, author=None):
     logger.debug("Getting data from ADS by title/author")
-    q = f"{clean_text(title)}"
+    q = f"{TextUtils.clean(title)}"
     if author:
-        q += f" AND {clean_text(author)}"
+        q += f" AND {TextUtils.clean(author)}"
 
     return _fetch_ads_data(q, title, reference=True)
 
@@ -592,50 +526,6 @@ def _fill_missing_ads_data(data, fallback_title):
             data["ads_reference"] = ads_reference
             data["ads_bibcode"] = ads_bibcode
 
-
-##
-# Create embeddings and keywords
-def embedding(text: list[str]):
-    logger.debug("Creating embeddings")
-    embeddings = OpenAPI.embedding(text)
-
-    try:
-        assert len(embeddings) == len(text)
-    except:
-        if not process_warning(
-            EMBEDDING_WARNING_TEXT.format(count = len(embeddings)), 
-            abort=True
-            ):
-            logger.fatal("\033[31mABORTED\033[0m")
-            exit()
-    
-    logger.debug("> Created embeddings")
-    return embeddings
-
-def keyword_extraction(text: str, example = None) -> list[str]:
-    logger.debug("Creating keywords")
-    payload = ""
-    if example:
-        payload += "\n\nExamples:\n"
-        for e in example:
-            payload += f"{e}\n"
-    payload += "\n\n Text:\n" + text
-    
-    keywords = OpenAPI.keyword_extraction(payload, N, RATIO)
-
-    try:
-        assert len(keywords) == N
-    except:
-        if not process_warning(
-            KEYWORD_WARNING_TEXT.format(count = N, keywords = keywords), 
-            abort=True
-            ):
-            logger.fatal("\033[31mABORTED\033[0m")
-            exit()
-
-    logger.debug("> Created keywords")
-    return keywords
-
 def unstructured_reference_to_sbkey(reference_list):
     logger.debug(f"Creating SBKey from unstructured reference:\n> {len(reference_list)} entries")
     structured_references = OpenAPI.article_data_extraction(reference_list)
@@ -654,10 +544,13 @@ def generate_key(metadata):
 def create_embedding(text:dict):
     logger.debug("Creating embeddings")
     text = {k: v for k, v in text.items() if v is not None}
-    payload = list(text.values())
-    embeddings = embedding(payload)
+    embeddings = OpenAPI.embedding(list(text.values()))
 
-    return {f"embedding_{key}": embedding for key, embedding in zip(text.keys(), embeddings)}
+    logger.debug("> Created embeddings")
+    return {
+        f"embedding_{key}": embedding
+        for key, embedding in zip(text.keys(), embeddings)
+        }
 
 def get_keyword_example(embeddings):
     logger.debug("Getting keyword examples")
@@ -681,11 +574,31 @@ def get_keyword_example(embeddings):
 
 def create_keywords(title, summary, body, keyword_example):
     logger.debug("Creating keywords")
-    keyword_payload = f"title: {title}\n"
-    keyword_payload += f"summary:\n{summary}\n\n" if summary else ""
-    keyword_payload += f"body:\n{body}"
+    payload = ""
+    if keyword_example:
+        payload += "\n\nExamples:\n"
+        for e in keyword_example:
+            payload += f"{e}\n"
+        payload += "---\n\n"
 
-    return keyword_extraction(keyword_payload, keyword_example)
+    payload = f"title: {title}\n"
+    payload += f"summary:\n{summary}\n\n" if summary else ""
+    payload += f"body:\n{body}"
+
+    keywords = OpenAPI.keyword_extraction(payload, N, RATIO)
+
+    try:
+        assert len(keywords) == N
+    except:
+        if not process_warning(
+            KEYWORD_WARNING_TEXT.format(count = N, keywords = keywords), 
+            abort=True
+            ):
+            logger.fatal("\033[31mABORTED\033[0m")
+            exit()
+
+    logger.debug("> Created keywords")
+    return keywords
 
 
 def organize_db_entry(data, metadata, embeddings, keywords):
@@ -730,22 +643,17 @@ def organize_md_metadata(data, metadata, keywords):
 
     return md_metadata
 
-def create_md_content(md_metadata, body):
-    return f"""---
-{yaml.dump(md_metadata, default_flow_style=False)}---
-{body}"""
-
-def append_reference(doi, ref_doi):
-    global ref_db
-    if doi is None or ref_doi is None:
-        return
-    for ref in ref_doi:
-        logger.debug(f"> Adding relation '{ref}' <- '{doi}'")
-        if doi in ref_db['doi'].values:
-            ref_db.loc[ref_db['doi'] == ref, 'ref'].apply(lambda x: x.append(doi))
-        else:
-            new_row = pandas.DataFrame({'doi': [ref], 'ref': [[doi]]})
-            ref_db = pandas.concat([ref_db, new_row], ignore_index=True)
+    # def append_reference(doi, ref_doi):
+#     global ref_db
+#     if doi is None or ref_doi is None:
+#         return
+#     for ref in ref_doi:
+#         logger.debug(f"> Adding relation '{ref}' <- '{doi}'")
+#         if doi in ref_db['doi'].values:
+#             ref_db.loc[ref_db['doi'] == ref, 'ref'].apply(lambda x: x.append(doi))
+#         else:
+#             new_row = pandas.DataFrame({'doi': [ref], 'ref': [[doi]]})
+#             ref_db = pandas.concat([ref_db, new_row], ignore_index=True)
 
 
 ##
@@ -756,9 +664,9 @@ if __name__ == "__main__":
     DB = PaperDB()
 
     # Process input file
-    markdown = read_file_lines(args.filename)
-    metadata_yaml, body = extract_yaml(markdown)
-    metadata_bibtex = extract_bibtex(body)
+    markdown = FileUtils.read_lines(args.filename)
+    metadata_yaml, body = MarkdownUtils.extract_yaml(markdown)
+    metadata_bibtex = MarkdownUtils.extract_bibtex(body)
     metadata = metadata_yaml | metadata_bibtex
     metadata["key"] = generate_key(metadata)
 
@@ -792,8 +700,8 @@ if __name__ == "__main__":
 
     # Write MD file
     md_metadata = organize_md_metadata(data, metadata, keywords)
-    md_content = create_md_content(md_metadata, body)
-    write_file(args.filename, md_content)
+    md_content = MarkdownUtils.create_md_text(md_metadata, body)
+    FileUtils.write_file(args.filename, md_content)
 
     # Add entry to DB
     new_entry = organize_db_entry(data, metadata, embeddings, keywords)
