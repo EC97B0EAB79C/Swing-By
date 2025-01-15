@@ -139,7 +139,8 @@ def generate_sbkey(title, author, year):
     title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
     
     sbkey = f"{author_last_name}{year}{title_first_word}{title_first_char}"
-    DB.append_article_db(sbkey, title, author, year)
+    #TODO: Move this part to other
+    # DB.append_article_db(sbkey, title, author, year)
 
     return sbkey
 
