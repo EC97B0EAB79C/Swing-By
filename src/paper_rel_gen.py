@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Standard library imports
 import logging
 import os
@@ -16,21 +14,24 @@ import arxiv
 from crossref_commons.iteration import iterate_publications_as_json
 from crossref_commons.retrieval import get_publication_as_json
 import requests
-# OpenAI related
-from openai import OpenAI
+
+# Internal imports
+from llm_api.open import OpenAPI
 
 # Global Parameters
 N = 10
 RATIO = 0.4
 # DB_LOCATION = os.environ.get("PAPER_REL_DB")
 DB_LOCATION = "./test/new_db.h5"
-TOKEN = os.environ["GITHUB_TOKEN"]
 ADS_API_KEY = os.environ["ADS_API_KEY"]
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 
 # Warning Messages
+EMBEDDING_WARNING_TEXT = """\033[33mWARNING\033[0m: There is error in number of embedding.
+\tCreated ({count})
+\tDo you want to proceed? (y/N): """
 KEYWORD_WARNING_TEXT = """\033[33mWARNING\033[0m: There is error in number of keywords.
 \tCreated ({count}): {keywords}
 \tDo you want to proceed? (y/N): """
@@ -592,64 +593,34 @@ def _fill_missing_ads_data(data, fallback_title):
 
 
 ##
-# OpenAI API
-EMBEDDING_MODEL = "text-embedding-3-small"
-KEYWORD_MODEL = "gpt-4o-mini"
-REFERECNCE_MODEL = "gpt-4o-mini"
-
-endpoint = "https://models.inference.ai.azure.com"
-client = OpenAI(base_url=endpoint, api_key=TOKEN)
-
+# Create embeddings and keywords
 def embedding(text: list[str]):
-    logger.debug("Embedding texts")
-    logger.debug("> Sending OpenAI embedding API request")
-    embedding_response = client.embeddings.create(
-        input = text,
-        model = EMBEDDING_MODEL,
-    )
-    logger.debug("> Recieved OpenAI embedding API responce")
-    logger.debug(f"> {embedding_response.usage}")
+    logger.debug("Creating embeddings")
+    embeddings = OpenAPI.embedding(text)
 
-    embeddings = []
-    for data in embedding_response.data:
-        embeddings.append(np.array(data.embedding))
+    try:
+        assert len(embeddings) == len(text)
+    except:
+        if not process_warning(
+            EMBEDDING_WARNING_TEXT.format(count = len(embeddings)), 
+            abort=True
+            ):
+            logger.fatal("\033[31mABORTED\033[0m")
+            exit()
     
-    logger.debug("> Created embedding vector")
+    logger.debug("> Created embeddings")
     return embeddings
 
 def keyword_extraction(text: str, example = None) -> list[str]:
-    logger.debug("> Creating keywords with GPT")
-    GPT_INSTRUCTIONS = f"""
-This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
-It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
-The GPT will aim to provide up to {N} keywords, with 1 keyword acting as a category, {N*RATIO} general tags applicable to a broad context, and {N - 1 - N*RATIO} being more specific to the content of the note.
-It avoids suggesting overly generic or redundant keywords unless necessary.
-It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
-Every tag will be lowercase.
-Return the list in json format with key "keywords" for keyword list.
-"""
+    logger.debug("Creating keywords")
+    payload = ""
     if example:
-        GPT_INSTRUCTIONS += "\n\nExamples:\n"
+        payload += "\n\nExamples:\n"
         for e in example:
-            GPT_INSTRUCTIONS += f"{e}\n"
+            payload += f"{e}\n"
+    payload += "\n\n Text:\n" + text
     
-    messages = [
-        {"role":"system", "content": GPT_INSTRUCTIONS},
-        {"role": "user", "content": text},
-    ]
-    logger.debug("> Sending OpenAI completion API request")
-    completion = client.beta.chat.completions.parse(
-        model = KEYWORD_MODEL,
-        messages = messages,
-        response_format = { "type": "json_object" }
-    )
-    logger.debug("> Recieved OpenAI completion API responce")
-    logger.debug(f"> {completion.usage}")
-
-    chat_response = completion.choices[0].message
-    json_data = json.loads(chat_response.content)
-
-    keywords = json_data["keywords"]
+    keywords = OpenAPI.keyword_extraction(payload, N, RATIO)
 
     try:
         assert len(keywords) == N
@@ -666,29 +637,7 @@ Return the list in json format with key "keywords" for keyword list.
 
 def unstructured_reference_to_sbkey(reference_list):
     logger.debug(f"Creating SBKey from unstructured reference:\n> {len(reference_list)} entries")
-    GPT_INSTRUCTIONS = """
-This GPT specializes in parsing unstructured strings of academic references and extracting key components such as the first author's name (formatted as "last_name, first_name"), the title of the work, and the publication year.
-It presents this information in a structured JSON format.
-The JSON data must include the following fields: "title", "first_author", and "year".
-Return entries in list with key "references".
-Responses are concise, focused on accurately extracting and formatting the data, and handle common variations in citation styles.
-"""
-    messages = [
-        {"role":"system", "content": GPT_INSTRUCTIONS},
-        {"role": "user", "content": "\n".join(reference_list)},
-    ]
-    logger.debug("> Sending OpenAI completion API request")
-    completion = client.beta.chat.completions.parse(
-        model = REFERECNCE_MODEL,
-        messages = messages,
-        response_format = { "type": "json_object" }
-    )
-    logger.debug("> Recieved OpenAI completion API responce")
-    logger.debug(f"> {completion.usage}")
-
-    chat_response = completion.choices[0].message
-    json_data = json.loads(chat_response.content)
-    structured_references = json_data["references"]
+    structured_references = OpenAPI.article_data_extraction(reference_list)
     sbkey_list = [generate_sbkey(ref["title"], ref["first_author"], ref["year"]) for ref in structured_references]
 
     logger.debug(f"> Created {len(sbkey_list)} SBKeys")
