@@ -9,10 +9,6 @@ import pandas
 import yaml
 import json
 import numpy as np
-# Query related
-import arxiv
-from crossref_commons.iteration import iterate_publications_as_json
-from crossref_commons.retrieval import get_publication_as_json
 import requests
 
 # Internal imports
@@ -20,6 +16,9 @@ from src.utils.file import FileUtils
 from src.utils.text import TextUtils
 from src.utils.md import MarkdownUtils
 from src.llm_api.open import OpenAPI
+
+from src.article_api.arxiv_api import ArxivQuery
+from src.article_api.crossref_api import CrossrefQuery
 
 # Global Parameters
 N = 10
@@ -198,79 +197,17 @@ class PaperDB:
 
 ##
 # Query arXiv
-arxiv_client = arxiv.Client()
-
-def _process_arxiv_result(results, title):
-    try:
-        result = next(results)
-    except:
-        logger.debug(f"> Failed to fetch from arXiv")
-        return None, None, None
-    
-    fetched = result.title
-    if not check_title(
-        title,
-        fetched,
-        QUERY_WARNING_TEXT.format(service = "arXiv", query=title, fetched=fetched)
-    ):
-        logger.info("\033[33mSkipped\033[0m summary")
-        return None, None, None
-    
-    logger.debug(f"> Successfully fetched paper: {fetched}")
-    return result.entry_id.split('/')[-1], result.summary, result.doi
-
-def _fetch_arxiv_data(query_str, title):
-    logger.debug(f"> Querying arXiv with query={query_str}")
-
-    search = arxiv.Search(
-        query = query_str,
-        max_results = 1,
-        sort_by = arxiv.SortCriterion.Relevance
-    )
-    logger.debug("> Sent arXiv API request")
-    results = arxiv_client.results(search)
-    logger.debug("> Received arXiv API response")
-    return _process_arxiv_result(results, title)
-
 def query_arxiv_title(title, author):
-    logger.debug("Getting data from arXiv by title/author")
-    q = f"{TextUtils.clean(title)} AND {TextUtils.clean(author)}"
+    return ArxivQuery.with_title(title, author)
 
-    return _fetch_arxiv_data(q, title)
-
-def query_arxiv_doi(doi, title):
-    logger.debug(f"Getting data from arXiv for DOI: {doi}")
-    q = f"{doi}"
-
-    return _fetch_arxiv_data(q, title)
+def query_arxiv_doi(doi):
+    return ArxivQuery.with_doi(doi)
 
 
 ##
 # Query Crossref
 def _send_crossref_request(title, author=None, check=False):
-    logger.debug(f"> Query: {title}")
-    query = {"query.title": TextUtils.clean(title)}
-    if author:
-        query["query.author"] = author.split(',')[0]
-    try:
-        result = next(iterate_publications_as_json(max_results=1,queries=query))
-        fetched = result["title"][0]
-    except Exception as e:
-        logger.error(f"> Failed to query Crossref: {str(e)}")
-        return None, None
-    
-    if not TextUtils.same(title, fetched):
-        if not check:
-            logger.info("\033[33mSkipped\033[0m reference DOI")
-            return None, None
-        if not process_warning(
-            QUERY_WARNING_TEXT.format(service = "Crossref", query=title, fetched=fetched)
-        ):
-            logger.info("\033[33mSkipped\033[0m reference")
-            return None, None
-    
-    logger.debug(f"> Successfully fetched paper: {fetched}")
-    return result.get("DOI"), result.get("reference")
+    return CrossrefQuery.with_title(title, author)
 
 def _create_crossref_reference(reference):
     unstructured_ref = []
@@ -296,12 +233,9 @@ def query_crossref_title(title, author=None):
 
 def query_crossref_doi(doi, title):
     logger.debug("Getting data from Crossref")
-    try:
-        result = get_publication_as_json(doi)
-        return doi, _create_crossref_reference(result.get("reference"))
-    except:
-        logger.error("> Failed to query Crossref")
-        return doi, None
+    doi, reference = CrossrefQuery.with_doi(doi)
+    return doi, _create_crossref_reference(reference)
+
     
 
 ##

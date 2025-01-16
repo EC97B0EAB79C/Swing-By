@@ -1,6 +1,6 @@
 import pytest
 
-from src.paper_rel_gen import *
+from paper_rel_gen import *
 
 class TestSBKeyGeneration:
     @pytest.mark.parametrize("title, author, year, expected", [
