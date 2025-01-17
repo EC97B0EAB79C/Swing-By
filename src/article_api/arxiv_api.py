@@ -25,7 +25,30 @@ class ArxivQuery:
             logger.error(f"> Failed to query arXiv: {e}")
             return None
 
-        return result
+        return self._process(result)
+
+    @staticmethod
+    def _process(data,title=None):
+        if data is None:
+            return None
+        result = {
+            "title": data.title,
+            "first_author": data.authors[0].name,
+            "doi": data.doi,
+            "summary": data.summary,
+            "arxiv_id": data.entry_id.split('/')[-1]
+        }
+
+        if title is None:
+            return result
+
+        if TextUtils.same(title, result.title):
+            return result
+
+        if WarningProcessor.process_article_warning(False, "arXiv", title, result.title):
+            return result
+
+        return None        
 
     @classmethod
     def with_title(self, title, author):
@@ -45,20 +68,8 @@ class ArxivQuery:
         title = TextUtils.clean(title)
         author = TextUtils.clean(author)
         query = f"ti:{title} AND au:{author}"
-        result = self._query(query)
+        return self._query(query)
 
-        if result is None:
-            return None, None, None
-
-        if TextUtils.same(title, result.title):
-            logger.debug(f"> Successfully fetched paper: {result.title}")
-            return result.entry_id.split('/')[-1], result.summary, result.doi
-
-        if WarningProcessor.process_article_warning(False, "arXiv", title, result.title):
-            logger.debug(f"> Successfully fetched paper: {result.title}")
-            return result.entry_id.split('/')[-1], result.summary, result.doi 
-
-        return None, None, None
     
     @classmethod
     def with_doi(self, doi):
@@ -78,7 +89,7 @@ class ArxivQuery:
         #     logger.debug(f"> Successfully fetched paper: {result.title}")
         #     return result.entry_id.split('/')[-1], result.summary, result.doi
 
-        return None, None, None
+        return None
 
 if __name__ == "__main__":
     arxiv_id, summary, doi = ArxivQuery.with_title("Precipitation downscaling with spatiotemporal video diffusion", "Srivastava, Prakhar")

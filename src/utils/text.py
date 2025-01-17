@@ -17,3 +17,12 @@ class TextUtils:
         if isinstance(value, str):
             return value
         return ""
+
+    @staticmethod
+    def get_last_name(value):
+        if None:
+            return ""
+        if ',' in value:
+            return value.split(',')[0].strip()
+        else:
+            return value.split(' ')[-1].strip()

@@ -65,6 +65,8 @@ class AdsQuery:
         
         if WarningProcessor.process_article_warning(False, "ADS", title, result["title"]):
             return result
+        
+        return None
     
     @classmethod
     def _bibcode_to_reference(self, bibcode):

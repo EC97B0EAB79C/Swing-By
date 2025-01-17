@@ -19,13 +19,13 @@ from src.llm_api.open import OpenAPI
 
 from src.article_api.arxiv_api import ArxivQuery
 from src.article_api.crossref_api import CrossrefQuery
+from src.article_api.ads_api import AdsQuery
 
 # Global Parameters
 N = 10
 RATIO = 0.4
 # DB_LOCATION = os.environ.get("PAPER_REL_DB")
 DB_LOCATION = "./test/new_db.h5"
-ADS_API_KEY = os.environ["ADS_API_KEY"]
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -108,19 +108,12 @@ def check_title(title1, title2, message, abort=False):
         return True
     return process_warning(message, abort)
 
-def verify_entry(value):
-    if isinstance(value, str):
-        return value
-    if isinstance(value, list):
-        return verify_entry(value[0])
-    else:
-        return ""
 
 def _format_entry(string, length):
     return string.lower().ljust(length,".")[:length].replace(" ", ".")
 
 def generate_sbkey(title, author, year):
-    author_last_name = TextUtils.clean(author).split()[0] if author else "."
+    author_last_name = TextUtils.get_last_name(author)
     author_last_name = _format_entry(author_last_name, 6)
 
     year = str(year)
@@ -240,110 +233,20 @@ def query_crossref_doi(doi, title):
 
 ##
 # Query ADS
-ADS_ENDPOINT = "https://api.adsabs.harvard.edu/v1/search/query"
-
-def _fetch_ads_data(query_str, title, reference=False):
-    logger.debug(f"> Querying ADS with query={query_str}")
-
-    headers = {
-        "Authorization": f"Bearer {ADS_API_KEY}"
-    }
-    params = {
-        "q": query_str,
-        "fl": "reference,bibcode,doi,abstract,title"
-    }
-
-    try:
-        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-        if b"<!DOCTYPE html>" in response.content:
-            raise requests.exceptions.RequestException("ADS is currently under maintenance")
-        data = response.json()
-
-        docs = data.get('response', {}).get('docs', [])
-        if not docs:
-            return None, None, None, None
-
-        first_doc = docs[0]
-        fetched = verify_entry(first_doc.get('title'))
-
-        if not check_title(
-            title, 
-            fetched, 
-            QUERY_WARNING_TEXT.format(service="ADS", query=title, fetched=fetched)
-        ):
-            logger.info("\033[33mSkipped\033[0m reference")
-            return None, None, None, None
-
-        bibcode_references = first_doc.get('reference', [])
-        references = list(_bibcodes_to_sbkeys(bibcode_references))
-        bibcode = first_doc.get('bibcode')
-        doi = verify_entry(first_doc.get('doi'))
-        abstract = first_doc.get('abstract')
-
-        logger.debug(f"> Successfully fetched paper: {fetched}")
-        return doi, abstract, references, bibcode
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"> Failed to query ADS: {str(e)}")
-        return None, None, None, None
-
-def _bibcode_to_sbkey(bibcode):
-    logger.debug(f"> Creating SBKey from bibcode={bibcode}")
-
-    headers = {
-        "Authorization": f"Bearer {ADS_API_KEY}"
-    }
-    params = {
-        "q": f"bibcode:{bibcode}",
-        "fl": "title,first_author,year"
-    }
-
-    try:
-        response = requests.get(ADS_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-        if b"<!DOCTYPE html>" in response.content:
-            raise requests.exceptions.RequestException("ADS is currently under maintenance")
-        data = response.json()
-
-        docs = data.get('response', {}).get('docs', [])
-        if not docs:
-            return None
-
-        first_doc = docs[0]
-        title = verify_entry(first_doc.get('title'))
-        author = verify_entry(first_doc.get('first_author'))
-        year = verify_entry(first_doc.get('year'))
-
-        return generate_sbkey(title, author, year)
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"> Failed to query ADS: {str(e)}")
-        return None
-
-def _bibcodes_to_sbkeys(bibcodes):
-    for bibcode in bibcodes:
-        yield _bibcode_to_sbkey(bibcode)        
-
 def query_ads_title(title, author=None):
     logger.debug("Getting data from ADS by title/author")
-    q = f"{TextUtils.clean(title)}"
-    if author:
-        q += f" AND {TextUtils.clean(author)}"
 
-    return _fetch_ads_data(q, title, reference=True)
+    return AdsQuery.with_title(title, author)
 
 def query_ads_arxiv(arxiv_id, title):
     logger.debug(f"Getting data from ADS for arXiv: {arxiv_id}")
-    q = f"arXiv:{arxiv_id}"
     
-    return _fetch_ads_data(q, title, reference=True)
+    return AdsQuery.with_arxiv(arxiv_id)
 
 def query_ads_doi(doi, title):
     logger.debug(f"Getting data from ADS for DOI: {doi}")
-    q = f"doi:{doi}"
 
-    return _fetch_ads_data(q, title, reference=True)
+    return AdsQuery.with_doi(doi)
 
 
 ##

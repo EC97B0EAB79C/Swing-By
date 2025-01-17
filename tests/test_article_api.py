@@ -11,9 +11,11 @@ class TestArxivQuery:
          "2312.06071v3")
     ])
     def test_with_title(self, title, author, id):
-        arxiv_id, summary, doi = ArxivQuery.with_title(title, author)
-        assert arxiv_id == id
-        assert summary is not None
+        result = ArxivQuery.with_title(title, author)
+        assert result["title"].lower() == title.lower()
+        assert result["arxiv_id"] == id
+        assert result["summary"] is not None
+        assert isinstance(result["first_author"], str)
 
 class TestCrossrefQuery:
     @pytest.mark.parametrize("title, author, doi", [
@@ -57,21 +59,24 @@ class TestAdsQuery:
         assert result["reference"] is not None
         assert result["doi"] == doi
         assert result["abstract"] is not None
+        assert result["first_author"] == author
 
-    def test_with_doi(self, doi, bibcode):
+    def test_with_doi(self, doi, bibcode, author):
         result = AdsQuery.with_doi(doi)
         assert result["bibcode"] == bibcode
         assert result["reference"] is not None
         assert result["doi"] == doi
         assert result["abstract"] is not None
+        assert result["first_author"] == author
 
 
-    def test_with_arxiv(self, arxiv_id, bibcode, doi):
+    def test_with_arxiv(self, arxiv_id, bibcode, doi, author):
         result = AdsQuery.with_arxiv(arxiv_id)
         assert result["bibcode"] == bibcode
         assert result["reference"] is not None
         assert result["doi"] == doi
         assert result["abstract"] is not None
+        assert result["first_author"] == author
 
     def test_bibcode_to_reference(self, bibcode, author, title):
         result = AdsQuery._bibcode_to_reference(bibcode)
