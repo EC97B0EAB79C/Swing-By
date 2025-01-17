@@ -24,17 +24,25 @@ class TestCrossrefQuery:
          "10.1063/1.2205307")
     ])
     def test_with_title(self, title, author, doi):
-        crossref_doi, reference = CrossrefQuery.with_title(title, author)
-        assert crossref_doi == doi
-        assert reference is not None
+        result = CrossrefQuery.with_title(title, author)
+        assert result["doi"] == doi
+        assert result["reference"] is not None 
+        assert isinstance(result["first_author"], str)
+        assert result["title"] is not None
+        assert result["year"] is not None
+        assert result["abstract"] is not None
 
     @pytest.mark.parametrize("doi", [
         "10.1063/1.2205307"
     ])
     def test_with_doi(self, doi):
-        crossref_doi, reference = CrossrefQuery.with_doi(doi)
-        assert crossref_doi == doi
-        assert reference is not None
+        result = CrossrefQuery.with_doi(doi)
+        assert result["doi"] == doi
+        assert result["reference"] is not None
+        assert isinstance(result["first_author"], str)
+        assert result["title"] is not None
+        assert result["year"] is not None
+        assert result["abstract"] is not None
 
 class TestAdsQuery:
     @pytest.fixture

@@ -13,6 +13,31 @@ class CrossrefQuery:
     def _create_crossref_reference():
         pass
 
+    def _process(data, title=None, get_references=False):
+        if data is None:
+            return None
+        result = {
+            "title": TextUtils.get_first_string(data.get("title")),
+            "first_author": data.get("author")[0].get("family"),#TODO process various author types
+            "year": data.get("issued").get("date-parts")[0][0],
+            "doi": TextUtils.get_first_string(data.get("DOI")),
+            "abstract": data.get("abstract")
+        }
+        if get_references:
+            result["reference"] = data.get("reference")
+
+        if title is None:
+            return result
+        
+        if TextUtils.same(title, result["title"]):
+            return result
+        
+        if WarningProcessor.process_article_warning(False, "Crossref", title, result["title"]):
+            return result
+        
+        return None
+        
+
     @classmethod
     def with_title(self, title, author):
         """
@@ -36,20 +61,11 @@ class CrossrefQuery:
         logger.debug("> Sending Crossref API request")
         try:
             result = next(iterate_publications_as_json(max_results=1,queries=query))
-            fetched = result["title"][0]
         except Exception as e:
             logger.error(f"> Failed to query Crossref: {str(e)}")
-            return None, None
+            return None
         
-        if TextUtils.same(title, fetched):
-            logger.debug(f"> Successfully fetched paper: {fetched}")
-            return result.get("DOI"), result.get("reference")
-        
-        if WarningProcessor.process_article_warning(False, "Crossref", title, fetched):
-            logger.debug(f"> Successfully fetched paper: {fetched}")
-            return result.get("DOI"), result.get("reference")
-        
-        return None, None
+        return self._process(result, title, get_references=True)
     
     @classmethod
     def with_doi(self, doi):
@@ -69,12 +85,11 @@ class CrossrefQuery:
         logger.debug("> Sending Crossref API request")
         try:
             result = get_publication_as_json(doi)
-            fetched = result["title"][0]
-            logger.debug(f"> Successfully fetched paper: {fetched}")
-            return doi,result.get("reference")
         except Exception as e:
             logger.error(f"> Failed to query Crossref: {str(e)}")
-            return None, None
+            return None
+        
+        return self._process(result, get_references=True)
 
 
         
