@@ -16,7 +16,7 @@ class AdsQuery:
     }
 
     @classmethod
-    def _query(self, query):
+    def _query(self, query, get_references=False):
         logger.debug(f"> Query: {query}")
         params = {
             "q": query,
@@ -40,44 +40,31 @@ class AdsQuery:
             logger.error(f"> Failed to query ADS: {str(e)}")
             return None
         
-        return result
+        return self._process(result, get_references=get_references)
     
     @classmethod
-    def _extract_article_data(self, data, title=None):
+    def _process(self, data, title=None, get_references=False):
         if data is None:
-            return None, None, None, None
-
-        fetched_title = TextUtils.get_first_string(data.get("title"))
-        bibcode_references = data.get("reference", [])
-        reference = [lambda x: self._bibcode_to_reference(x) for x in bibcode_references]
-        bibcode = data.get("bibcode")
-        doi = TextUtils.get_first_string(data.get("doi"))
-        abstract = data.get("abstract")
+            return None
+        result = {
+            "title": TextUtils.get_first_string(data.get("title")),
+            "first_author": data.get("first_author"),
+            "year": data.get("year"),
+            "bibcode": data.get("bibcode"),
+            "doi": TextUtils.get_first_string(data.get("doi")),
+            "abstract": data.get("abstract")
+        }
+        if get_references:
+            result["reference"] = [self._bibcode_to_reference(x) for x in data.get("reference", [])]
 
         if title is None:
-            logger.debug(f"> Successfully fetched paper: {fetched_title}")
-            return bibcode, reference, doi, abstract
-
-        if TextUtils.same(title, fetched_title):
-            logger.debug(f"> Successfully fetched paper: {fetched_title}")
-            return bibcode, reference, doi, abstract
+            return result
         
-        if WarningProcessor.process_article_warning(False, "ADS", title, fetched_title):
-            logger.debug(f"> Successfully fetched paper: {fetched_title}")
-            return bibcode, reference, doi, abstract
+        if TextUtils.same(title, result["title"]):
+            return result
         
-        return None, None, None, None
-    
-    @staticmethod
-    def _extract_basic_data(data):
-        if data is None:
-            return None, None, None, None
-
-        title = data.get("title")
-        first_author = data.get("first_author")
-        year = data.get("year")
-
-        return title, first_author, year
+        if WarningProcessor.process_article_warning(False, "ADS", title, result["title"]):
+            return result
     
     @classmethod
     def _bibcode_to_reference(self, bibcode):
@@ -91,12 +78,7 @@ class AdsQuery:
         logger.debug(f"> Getting references from ADS by bibcode")
         query = f"bibcode:{bibcode}"
         result = self._query(query)
-        result = self._extract_article_data(result)
-        return {
-            "title": result[0],
-            "first_author": result[1],
-            "year": result[2]
-        }
+        return result
 
     @classmethod
     def with_title(self, title, author):
@@ -111,9 +93,7 @@ class AdsQuery:
         logger.debug("Getting data from ADS by title/author")
         title = TextUtils.clean(title)
         query = f"title:'{title}' author:'{author}'"
-        print(query)
-        result = self._query(query)
-        return self._extract_article_data(result, title)
+        return self._query(query, get_references=True)
         
     @classmethod
     def with_doi(self, doi):
@@ -126,8 +106,7 @@ class AdsQuery:
         """
         logger.debug("Getting data from ADS by DOI")
         query = f"doi:{doi}"
-        result = self._query(query)
-        return self._extract_article_data(result)
+        return self._query(query, get_references=True)
     
     @classmethod
     def with_arxiv(self, arxiv_id):
@@ -140,9 +119,8 @@ class AdsQuery:
         """
         logger.debug("Getting data from ADS by arXiv ID")
         query = f"arXiv:{arxiv_id}"
-        result = self._query(query)
-        return self._extract_article_data(result)
-    
+        return self._query(query, get_references=True)
+
 if __name__ == "__main__":
     print(AdsQuery.with_title(
         "Precipitation downscaling with spatiotemporal video diffusion", 

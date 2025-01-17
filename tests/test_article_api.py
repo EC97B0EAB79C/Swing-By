@@ -51,23 +51,31 @@ class TestAdsQuery:
     def arxiv_id(self):
         return "2312.06071"
     
-    def test_with_title(self, title, author, bibcode):
-        q_bibcode, reference, doi, abstact = AdsQuery.with_title(title, author)
-        assert q_bibcode == bibcode
-        assert reference is not None
-        assert doi is not None
-        assert abstact is not None
+    def test_with_title(self, title, author, bibcode, doi):
+        result = AdsQuery.with_title(title, author)
+        assert result["bibcode"] == bibcode
+        assert result["reference"] is not None
+        assert result["doi"] == doi
+        assert result["abstract"] is not None
 
     def test_with_doi(self, doi, bibcode):
-        q_bibcode, reference, q_doi, abstact = AdsQuery.with_doi(doi)
-        assert q_bibcode == bibcode
-        assert reference is not None
-        assert q_doi == doi
-        assert abstact is not None
+        result = AdsQuery.with_doi(doi)
+        assert result["bibcode"] == bibcode
+        assert result["reference"] is not None
+        assert result["doi"] == doi
+        assert result["abstract"] is not None
 
-    def test_with_arxiv(self, arxiv_id, bibcode):
-        q_bibcode, reference, doi, abstact = AdsQuery.with_arxiv(arxiv_id)
-        assert q_bibcode == bibcode
-        assert reference is not None
-        assert doi is not None
-        assert abstact is not None
+
+    def test_with_arxiv(self, arxiv_id, bibcode, doi):
+        result = AdsQuery.with_arxiv(arxiv_id)
+        assert result["bibcode"] == bibcode
+        assert result["reference"] is not None
+        assert result["doi"] == doi
+        assert result["abstract"] is not None
+
+    def test_bibcode_to_reference(self, bibcode, author, title):
+        result = AdsQuery._bibcode_to_reference(bibcode)
+        assert result["title"].lower() == title.lower()
+        assert result["first_author"] == author
+        assert result["year"] is not None
+        assert result.get("reference") is None
