@@ -66,8 +66,9 @@ class ArxivQuery:
         """
         logger.debug("Getting data from arXiv by title/author")
         title = TextUtils.clean(title)
-        author = TextUtils.clean(author)
-        query = f"ti:{title} AND au:{author}"
+        query = f"ti:{title}"
+        if author:
+            query += f" AND au:{author}"
         return self._query(query)
 
     

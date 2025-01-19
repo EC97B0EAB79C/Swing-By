@@ -55,7 +55,7 @@ class AdsQuery:
             "abstract": data.get("abstract")
         }
         if get_references:
-            result["reference"] = [self._bibcode_to_reference(x) for x in data.get("reference", [])]
+            result["reference"] = [self.with_bibcode(x, get_references=False) for x in data.get("reference", [])]
 
         if title is None:
             return result
@@ -68,22 +68,22 @@ class AdsQuery:
         
         return None
     
+    # @classmethod
+    # def _bibcode_to_reference(self, bibcode):
+    #     """
+    #     Convert bibcode to reference
+
+    #     Args:
+    #         bibcode (str): Bibcode of the article
+
+    #     """
+    #     logger.debug(f"> Getting references from ADS by bibcode")
+    #     query = f"bibcode:{bibcode}"
+    #     result = self._query(query)
+    #     return result
+
     @classmethod
-    def _bibcode_to_reference(self, bibcode):
-        """
-        Convert bibcode to reference
-
-        Args:
-            bibcode (str): Bibcode of the article
-
-        """
-        logger.debug(f"> Getting references from ADS by bibcode")
-        query = f"bibcode:{bibcode}"
-        result = self._query(query)
-        return result
-
-    @classmethod
-    def with_title(self, title, author):
+    def with_title(self, title, author, get_references=True):
         """
         Query ADS API with title and author
 
@@ -94,11 +94,13 @@ class AdsQuery:
         """
         logger.debug("Getting data from ADS by title/author")
         title = TextUtils.clean(title)
-        query = f"title:'{title}' author:'{author}'"
-        return self._query(query, get_references=True)
+        query = f"title:'{title}'"
+        if author:
+            query += f" author:'{author}'"
+        return self._query(query, get_references=get_references)
         
     @classmethod
-    def with_doi(self, doi):
+    def with_doi(self, doi, get_references=True):
         """
         Query ADS API with DOI
 
@@ -108,10 +110,23 @@ class AdsQuery:
         """
         logger.debug("Getting data from ADS by DOI")
         query = f"doi:{doi}"
-        return self._query(query, get_references=True)
+        return self._query(query, get_references=get_references)
     
     @classmethod
-    def with_arxiv(self, arxiv_id):
+    def with_bibcode(self, bibcode, get_references=True):
+        """
+        Query ADS API with bibcode
+
+        Args:
+            bibcode (str): Bibcode of the article
+
+        """
+        logger.debug("Getting data from ADS by bibcode")
+        query = f"bibcode:{bibcode}"
+        return self._query(query, get_references=get_references)
+    
+    @classmethod
+    def with_arxiv(self, arxiv_id, get_references=True):
         """
         Query ADS API with arXiv ID
 
@@ -121,7 +136,7 @@ class AdsQuery:
         """
         logger.debug("Getting data from ADS by arXiv ID")
         query = f"arXiv:{arxiv_id}"
-        return self._query(query, get_references=True)
+        return self._query(query, get_references=get_references)
 
 if __name__ == "__main__":
     print(AdsQuery.with_title(

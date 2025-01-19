@@ -18,7 +18,7 @@ class CrossrefQuery:
             return None
         result = {
             "title": TextUtils.get_first_string(data.get("title")),
-            "first_author": data.get("author")[0].get("family"),#TODO process various author types
+            "first_author": TextUtils.get_author(data.get("author")),
             "year": data.get("issued").get("date-parts")[0][0],
             "doi": TextUtils.get_first_string(data.get("DOI")),
             "abstract": data.get("abstract")
@@ -39,7 +39,7 @@ class CrossrefQuery:
         
 
     @classmethod
-    def with_title(self, title, author):
+    def with_title(self, title, author, get_references=True):
         """
         Query Crossref API with title and author
 
@@ -53,10 +53,11 @@ class CrossrefQuery:
         """
         logger.debug("Getting data from Crossref by title/author")
         title = TextUtils.clean(title)
-        author = TextUtils.clean(author)
 
         logger.debug(f"> Query: {title}")
-        query = {"query.title": title, "query.author": author}
+        query = {"query.title": title}
+        if author:
+            query["query.author"] = author
 
         logger.debug("> Sending Crossref API request")
         try:
@@ -65,10 +66,10 @@ class CrossrefQuery:
             logger.error(f"> Failed to query Crossref: {str(e)}")
             return None
         
-        return self._process(result, title, get_references=True)
+        return self._process(result, title, get_references=get_references)
     
     @classmethod
-    def with_doi(self, doi):
+    def with_doi(self, doi, get_references=True):
         """
         Query Crossref API with DOI
 
@@ -89,7 +90,7 @@ class CrossrefQuery:
             logger.error(f"> Failed to query Crossref: {str(e)}")
             return None
         
-        return self._process(result, get_references=True)
+        return self._process(result, get_references=get_references)
 
 
         

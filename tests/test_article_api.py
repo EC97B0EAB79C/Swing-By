@@ -3,6 +3,7 @@ import pytest
 from src.article_api.arxiv_api import ArxivQuery
 from src.article_api.crossref_api import CrossrefQuery
 from src.article_api.ads_api import AdsQuery
+from src.article_api.article import Article
 
 class TestArxivQuery:
     @pytest.mark.parametrize("title, author, id", [
@@ -27,7 +28,7 @@ class TestCrossrefQuery:
         result = CrossrefQuery.with_title(title, author)
         assert result["doi"] == doi
         assert result["reference"] is not None 
-        assert isinstance(result["first_author"], str)
+        assert result["first_author"] == author
         assert result["title"] is not None
         assert result["year"] is not None
         assert result["abstract"] is not None
@@ -87,8 +88,52 @@ class TestAdsQuery:
         assert result["first_author"] == author
 
     def test_bibcode_to_reference(self, bibcode, author, title):
-        result = AdsQuery._bibcode_to_reference(bibcode)
+        result = AdsQuery.with_bibcode(bibcode, False)
         assert result["title"].lower() == title.lower()
         assert result["first_author"] == author
         assert result["year"] is not None
         assert result.get("reference") is None
+
+class TestBasicData:
+    @pytest.fixture
+    def title(self):
+        return "Precipitation downscaling with spatiotemporal video diffusion"
+    @pytest.fixture
+    def author(self):
+        return "Srivastava, Prakhar"
+    @pytest.fixture
+    def doi(self):
+        return "10.48550/arXiv.2312.06071"
+    @pytest.fixture
+    def bibcode(self):
+        return "2023arXiv231206071S"
+    @pytest.fixture
+    def arxiv_id(self):
+        return "2312.06071"
+
+    def test_get_basic_data_none(self):
+        assert Article.get_basic_data() is None
+
+    def test_get_basic_data_doi(self, doi):
+        result = Article.get_basic_data(doi=doi)
+        assert result["first_author"] is not None
+        assert result["title"] is not None
+        assert result["year"] is not None
+
+    def test_get_basic_data_bibcode(self, bibcode):
+        result = Article.get_basic_data(bibcode=bibcode)
+        assert result["first_author"] is not None
+        assert result["title"] is not None
+        assert result["year"] is not None
+
+    def test_get_basic_data_title(self, title):
+        result = Article.get_basic_data(title=title)
+        assert result["first_author"] is not None
+        assert result["title"] is not None
+        assert result["year"] is not None
+
+    def test_get_basic_data_title_author(self, title, author):
+        result = Article.get_basic_data(title=title, first_author=author)
+        assert result["first_author"] is not None
+        assert result["title"] is not None
+        assert result["year"] is not None
