@@ -22,7 +22,7 @@ class TextUtils:
 
     @staticmethod
     def get_last_name(value):
-        if None:
+        if value is None:
             return None
         if ',' in value:
             return value.split(',')[0].strip()

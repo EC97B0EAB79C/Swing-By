@@ -4,6 +4,7 @@ import logging
 # Third-party imports
 
 from src.utils.text import TextUtils
+from src.utils.dict import DictUtils
 
 from src.article_api.arxiv_api import ArxivQuery
 from src.article_api.crossref_api import CrossrefQuery
@@ -36,6 +37,7 @@ class Article:
             "ads_abstract": None,
             "ads_reference": None,
             "ads_bibcode": None,
+            "year": None
         }
 
     @staticmethod
@@ -55,36 +57,41 @@ class Article:
         }
 
         if doi:
-            data = CrossrefQuery.with_doi(doi, get_references=False)
+            result = CrossrefQuery.with_doi(doi, get_references=False)
+            data = DictUtils.merge(data, result)
             if self._verify_data(data):
                 return data
 
-            data = AdsQuery.with_doi(doi, get_references=False)
+
+            result = AdsQuery.with_doi(doi, get_references=False)
+            data = DictUtils.merge(data, result)
             if self._verify_data(data):
                 return data
         
         if bibcode:
-            data = AdsQuery.with_bibcode(bibcode, get_references=False)
+            result = AdsQuery.with_bibcode(bibcode, get_references=False)
+            data = DictUtils.merge(data, result)
             if self._verify_data(data):
                 return data
 
         if title:
-            data = AdsQuery.with_title(title, first_author, get_references=False)
+            result = AdsQuery.with_title(title, first_author, get_references=False)
+            data = DictUtils.merge(data, result)
             if self._verify_data(data):
                 return data
                 
-            data = CrossrefQuery.with_title(title, first_author, get_references=False)
+            result = CrossrefQuery.with_title(title, first_author, get_references=False)
+            data = DictUtils.merge(data, result)
             if self._verify_data(data):
                 return data
 
-                return data
         return None
 
 
 
     @staticmethod
     def get_basic_data_with_unstructured(unstructured_data):
-        return OpenApi.article_data_extraction(unstructured_data)    
+        return OpenAPI.article_data_extraction(unstructured_data)    
 
 
     # def get_basic_data_bulk(self, unstructured_list):

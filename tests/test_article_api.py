@@ -13,6 +13,7 @@ class TestArxivQuery:
     ])
     def test_with_title(self, title, author, id):
         result = ArxivQuery.with_title(title, author)
+        assert result is not None
         assert result["title"].lower() == title.lower()
         assert result["arxiv_id"] == id
         assert result["summary"] is not None
@@ -26,6 +27,7 @@ class TestCrossrefQuery:
     ])
     def test_with_title(self, title, author, doi):
         result = CrossrefQuery.with_title(title, author)
+        assert result is not None
         assert result["doi"] == doi
         assert result["reference"] is not None 
         assert result["first_author"] == author
@@ -38,6 +40,7 @@ class TestCrossrefQuery:
     ])
     def test_with_doi(self, doi):
         result = CrossrefQuery.with_doi(doi)
+        assert result is not None
         assert result["doi"] == doi
         assert result["reference"] is not None
         assert isinstance(result["first_author"], str)
@@ -64,6 +67,7 @@ class TestAdsQuery:
     
     def test_with_title(self, title, author, bibcode, doi):
         result = AdsQuery.with_title(title, author)
+        assert result is not None
         assert result["bibcode"] == bibcode
         assert result["reference"] is not None
         assert result["doi"] == doi
@@ -72,6 +76,7 @@ class TestAdsQuery:
 
     def test_with_doi(self, doi, bibcode, author):
         result = AdsQuery.with_doi(doi)
+        assert result is not None
         assert result["bibcode"] == bibcode
         assert result["reference"] is not None
         assert result["doi"] == doi
@@ -81,6 +86,7 @@ class TestAdsQuery:
 
     def test_with_arxiv(self, arxiv_id, bibcode, doi, author):
         result = AdsQuery.with_arxiv(arxiv_id)
+        assert result is not None
         assert result["bibcode"] == bibcode
         assert result["reference"] is not None
         assert result["doi"] == doi
@@ -89,6 +95,7 @@ class TestAdsQuery:
 
     def test_bibcode_to_reference(self, bibcode, author, title):
         result = AdsQuery.with_bibcode(bibcode, False)
+        assert result is not None
         assert result["title"].lower() == title.lower()
         assert result["first_author"] == author
         assert result["year"] is not None
@@ -110,30 +117,51 @@ class TestBasicData:
     @pytest.fixture
     def arxiv_id(self):
         return "2312.06071"
+    @pytest.fixture
+    def year(self):
+        return 2023
 
     def test_get_basic_data_none(self):
         assert Article.get_basic_data() is None
 
-    def test_get_basic_data_doi(self, doi):
+    def test_get_basic_data_doi(self, doi, year):
         result = Article.get_basic_data(doi=doi)
+        assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
-        assert result["year"] is not None
+        assert int(result["year"]) == year
 
-    def test_get_basic_data_bibcode(self, bibcode):
+    def test_get_basic_data_bibcode(self, bibcode, year):
         result = Article.get_basic_data(bibcode=bibcode)
+        assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
-        assert result["year"] is not None
+        assert int(result["year"]) == year
 
-    def test_get_basic_data_title(self, title):
+    def test_get_basic_data_title(self, title, year):
         result = Article.get_basic_data(title=title)
+        assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
-        assert result["year"] is not None
+        assert int(result["year"]) == year
 
-    def test_get_basic_data_title_author(self, title, author):
+    def test_get_basic_data_title_author(self, title, author, year):
         result = Article.get_basic_data(title=title, first_author=author)
+        assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
-        assert result["year"] is not None
+        assert int(result["year"]) == year
+
+    @pytest.mark.parametrize("unstructured", [
+        ("Srivastava, P. (2023). Precipitation downscaling with spatiotemporal video diffusion."),
+        ("Srivastava, Prakhar. \"Precipitation Downscaling with Spatiotemporal Video Diffusion.\" 2023."),
+        ("P. Srivastava, \"Precipitation downscaling with spatiotemporal video diffusion,\" 2023."),
+        ("Srivastava P. Precipitation downscaling with spatiotemporal video diffusion. 2023.")
+    ])
+    def test_get_basic_data_unstructured(self, unstructured, year):
+        result = Article.get_basic_data_with_unstructured([unstructured])
+        assert result is not None
+        result = result[0]
+        assert result["first_author"] is not None
+        assert result["title"] is not None
+        assert int(result["year"]) == year
