@@ -67,3 +67,11 @@ class TestTextUtils:
     ])
     def test_same(self, text1, text2, expected):
         assert TextUtils.same(text1, text2) == expected
+
+    @pytest.mark.parametrize("text1, text2, expected", [
+        ("Test, text!", "test text", True),
+        ("This is a test for text similarity", "This is test for text similarity", True),
+        ("Test, text!", "another test text", False),
+    ])
+    def test_similar(self, text1, text2, expected):
+        assert TextUtils.similar(text1, text2) == expected

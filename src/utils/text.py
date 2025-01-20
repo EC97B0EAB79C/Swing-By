@@ -1,5 +1,6 @@
 
 import re
+from difflib import SequenceMatcher
 
 class TextUtils:
     @staticmethod
@@ -7,6 +8,12 @@ class TextUtils:
         if text is None:
             return ""
         return ' '.join(re.sub(r"[^a-zA-Z0-9]+", ' ', text).split()).lower()
+
+    @classmethod
+    def similar(self, text1, text2, threshold=0.8):
+        text1 = self.clean(text1)
+        text2 = self.clean(text2)
+        return SequenceMatcher(None, text1, text2).ratio() > threshold
 
     @classmethod
     def same(self, text1, text2):
