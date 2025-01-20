@@ -20,6 +20,7 @@ class CrossrefQuery:
             "title": TextUtils.get_first_string(data.get("title")),
             "first_author": TextUtils.get_author(data.get("author")),
             "year": data.get("issued").get("date-parts")[0][0],
+            
             "doi": TextUtils.get_first_string(data.get("DOI")),
             "abstract": data.get("abstract")
         }

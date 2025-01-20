@@ -17,9 +17,7 @@ from src.utils.text import TextUtils
 from src.utils.md import MarkdownUtils
 from src.llm_api.open import OpenAPI
 
-from src.article_api.arxiv_api import ArxivQuery
-from src.article_api.crossref_api import CrossrefQuery
-from src.article_api.ads_api import AdsQuery
+from src.article_api.article import Article
 
 # Global Parameters
 N = 10
@@ -188,181 +186,6 @@ class PaperDB:
         logger.debug(f"Appended article to DB")
 
 
-##
-# Query arXiv
-def query_arxiv_title(title, author):
-    return ArxivQuery.with_title(title, author)
-
-def query_arxiv_doi(doi):
-    return ArxivQuery.with_doi(doi)
-
-
-##
-# Query Crossref
-def _send_crossref_request(title, author=None, check=False):
-    return CrossrefQuery.with_title(title, author)
-
-def _create_crossref_reference(reference):
-    unstructured_ref = []
-    sbkey_list = []
-
-    if not reference:
-        return None
-    for r in reference:
-        if r.get("article-title"):
-            sbkey_list.append(generate_sbkey(r.get("article-title"), r.get("author"), r.get("year")))
-        elif r.get("unstructured"):
-            unstructured_ref.append(r.get("unstructured"))
-
-    if unstructured_ref:
-        sbkey_list += unstructured_reference_to_sbkey(unstructured_ref)
-
-    return sbkey_list or []
-
-def query_crossref_title(title, author=None):
-    logger.debug("Getting data from Crossref")
-    doi, reference = _send_crossref_request(title, author, check=True)
-    return doi, _create_crossref_reference(reference)
-
-def query_crossref_doi(doi, title):
-    logger.debug("Getting data from Crossref")
-    doi, reference = CrossrefQuery.with_doi(doi)
-    return doi, _create_crossref_reference(reference)
-
-    
-
-##
-# Query ADS
-def query_ads_title(title, author=None):
-    logger.debug("Getting data from ADS by title/author")
-
-    return AdsQuery.with_title(title, author)
-
-def query_ads_arxiv(arxiv_id, title):
-    logger.debug(f"Getting data from ADS for arXiv: {arxiv_id}")
-    
-    return AdsQuery.with_arxiv(arxiv_id)
-
-def query_ads_doi(doi, title):
-    logger.debug(f"Getting data from ADS for DOI: {doi}")
-
-    return AdsQuery.with_doi(doi)
-
-
-##
-# Semantic Scholar API
-#TODO
-
-
-##
-# Process Article
-def process_article(title, author):
-    data = {
-        "arxiv_id": None,
-        "summary": None,
-        "arxiv_doi": None,
-        "crossref_doi": None,
-        "crossref_reference": None,
-        "ads_doi": None,
-        "ads_abstract": None,
-        "ads_reference": None,
-        "ads_bibcode": None,
-    }
-
-    _update_arxiv_title(data, title, author)
-    _update_crossref_title(data, title, author)
-    _update_ads_title(data, title, author)
-
-    _fill_missing_arxiv_data(data, title)
-    _fill_missing_crossref_data(data, title)
-    _fill_missing_ads_data(data, title)
-
-    return data
-
-def _update_arxiv_title(data, title, author):
-    arxiv_id, summary, arxiv_doi = query_arxiv_title(title, author)
-    data["arxiv_id"] = arxiv_id
-    data["summary"] = summary
-    data["arxiv_doi"] = arxiv_doi
-
-def _update_crossref_title(data, title, author):
-    crossref_doi, crossref_reference = query_crossref_title(title, author)
-    data["crossref_doi"] = crossref_doi
-    data["crossref_reference"] = crossref_reference
-
-def _update_ads_title(data, title, author):
-    ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_title(title, author)
-    data["ads_doi"] = ads_doi
-    data["ads_abstract"] = ads_abstract
-    data["ads_reference"] = ads_reference
-    data["ads_bibcode"] = ads_bibcode
-
-def _fill_missing_arxiv_data(data, fallback_title):
-    if data["arxiv_id"]:
-        return
-
-    if data["crossref_doi"]:
-        arxiv_id, summary, arxiv_doi = query_arxiv_doi(data["crossref_doi"], fallback_title)
-        if arxiv_id:
-            data["arxiv_id"] = arxiv_id
-            data["summary"] = summary
-            data["arxiv_doi"] = arxiv_doi
-            return
-
-    if data["ads_doi"]:
-        arxiv_id, summary, arxiv_doi = query_arxiv_doi(data["ads_doi"], fallback_title)
-        if arxiv_id:
-            data["arxiv_id"] = arxiv_id
-            data["summary"] = summary
-            data["arxiv_doi"] = arxiv_doi
-
-def _fill_missing_crossref_data(data, fallback_title):
-    if data["crossref_reference"]:
-        return
-
-    if data["arxiv_doi"]:
-        crossref_doi, crossref_reference = query_crossref_doi(data["arxiv_doi"], fallback_title)
-        if crossref_reference:
-            data["crossref_doi"] = crossref_doi
-            data["crossref_reference"] = crossref_reference
-            return
-
-    if data["ads_doi"]:
-        crossref_doi, crossref_reference = query_crossref_doi(data["ads_doi"], fallback_title)
-        if crossref_reference:
-            data["crossref_doi"] = crossref_doi
-            data["crossref_reference"] = crossref_reference
-
-def _fill_missing_ads_data(data, fallback_title):
-    if data["ads_bibcode"]:
-        return
-
-    if data["arxiv_doi"]:
-        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_doi(data["arxiv_doi"], fallback_title)
-        if ads_bibcode:
-            data["ads_doi"] = ads_doi
-            data["ads_abstract"] = ads_abstract
-            data["ads_reference"] = ads_reference
-            data["ads_bibcode"] = ads_bibcode
-            return
-
-    if data["crossref_doi"]:
-        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_doi(data["crossref_doi"], fallback_title)
-        if ads_bibcode:
-            data["ads_doi"] = ads_doi
-            data["ads_abstract"] = ads_abstract
-            data["ads_reference"] = ads_reference
-            data["ads_bibcode"] = ads_bibcode
-            return
-
-    if not data["ads_bibcode"] and data["arxiv_id"]:
-        ads_doi, ads_abstract, ads_reference, ads_bibcode = query_ads_arxiv(data["arxiv_id"], fallback_title)
-        if ads_bibcode:
-            data["ads_doi"] = ads_doi
-            data["ads_abstract"] = ads_abstract
-            data["ads_reference"] = ads_reference
-            data["ads_bibcode"] = ads_bibcode
-
 def unstructured_reference_to_sbkey(reference_list):
     logger.debug(f"Creating SBKey from unstructured reference:\n> {len(reference_list)} entries")
     structured_references = OpenAPI.article_data_extraction(reference_list)
@@ -511,7 +334,7 @@ if __name__ == "__main__":
 
     data = {}
     if args.article:
-        data = process_article(query_title, metadata["author"][0])
+        data = Article.get_data(query_title, metadata["author"][0])
 
     query_summary = data.get("summary") or data.get("ads_abstract")
 

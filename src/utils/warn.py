@@ -5,7 +5,7 @@ logger = logging.getLogger(__name__)
 
 class WarningProcessor:
     @staticmethod
-    def process_warning(message, abort = False, script_mode = False):
+    def process_warning(message, abort = False, script_mode = True):
         if script_mode:
             return False
         user_continue = input(message) == 'y'

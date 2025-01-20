@@ -34,9 +34,10 @@ class ArxivQuery:
         result = {
             "title": data.title,
             "first_author": data.authors[0].name,
+
+            "arxiv_id": data.entry_id.split('/')[-1],
             "doi": data.doi,
-            "summary": data.summary,
-            "arxiv_id": data.entry_id.split('/')[-1]
+            "summary": data.summary
         }
 
         if title is None:
@@ -82,13 +83,6 @@ class ArxivQuery:
 
         """
         logger.warning("Querying arXiv with DOI is not supported")
-        # logger.debug("Getting data from arXiv by DOI")
-        # query = f"{doi}"
-        # result = self._query(query)
-
-        # if result:
-        #     logger.debug(f"> Successfully fetched paper: {result.title}")
-        #     return result.entry_id.split('/')[-1], result.summary, result.doi
 
         return None
 

@@ -50,6 +50,7 @@ class AdsQuery:
             "title": TextUtils.get_first_string(data.get("title")),
             "first_author": data.get("first_author"),
             "year": data.get("year"),
+
             "bibcode": data.get("bibcode"),
             "doi": TextUtils.get_first_string(data.get("doi")),
             "abstract": data.get("abstract")
@@ -67,20 +68,6 @@ class AdsQuery:
             return result
         
         return None
-    
-    # @classmethod
-    # def _bibcode_to_reference(self, bibcode):
-    #     """
-    #     Convert bibcode to reference
-
-    #     Args:
-    #         bibcode (str): Bibcode of the article
-
-    #     """
-    #     logger.debug(f"> Getting references from ADS by bibcode")
-    #     query = f"bibcode:{bibcode}"
-    #     result = self._query(query)
-    #     return result
 
     @classmethod
     def with_title(self, title, author, get_references=True):

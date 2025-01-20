@@ -165,3 +165,36 @@ class TestBasicData:
         assert result["first_author"] is not None
         assert result["title"] is not None
         assert int(result["year"]) == year
+
+class TestGetData:
+    @pytest.mark.parametrize("title, author, data, notnull", [
+        ("Precipitation downscaling with spatiotemporal video diffusion",
+         "Srivastava, Prakhar",
+         {'title': 'Precipitation downscaling with spatiotemporal video diffusion',
+          'first_author': 'Srivastava, Prakhar',
+          'year': '2023',
+          'arxiv_id': '2312.06071v3',
+          'ads_bibcode': '2023arXiv231206071S',
+          'ads_doi': '10.48550/arXiv.2312.06071'},
+          ["arxiv_summary", "ads_abstract", "ads_reference"]),
+         ("A theoretical prediction of friction drag reduction in turbulent flow by superhydrophobic surfaces",
+         "Fukagata, Koji",
+         {'title': 'A theoretical prediction of friction drag reduction in turbulent flow by superhydrophobic surfaces',
+          'first_author': 'Fukagata, Koji',
+          'year': 2006,
+          'arxiv_id': '2011.11911v2',
+          'arxiv_doi': '10.1007/s00521-021-06633-z',
+          'crossref_doi': '10.1063/1.2205307',
+          'ads_bibcode': '2006PhFl...18e1703F',
+          'ads_doi': '10.1063/1.2205307'},
+         ["arxiv_summary", "crossref_abstract", "crossref_abstract", "ads_abstract", "ads_reference"])
+    ])
+    def test_get_data(self, title, author, data, notnull):
+        result = Article.get_data(title, author)
+        assert result is not None
+        for key in data:
+            assert result[key] == data[key]
+        for key in notnull:
+            assert result[key] is not None
+        
+        

@@ -13,3 +13,10 @@ class DictUtils:
             dict1[key] = dict1[key] or dict2[key]
 
         return dict1
+
+    @staticmethod
+    def rename_key(dict, key_mapping):
+        for key in key_mapping:
+            dict[key_mapping[key]] = dict.pop(key)
+
+        return dict
