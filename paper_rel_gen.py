@@ -17,7 +17,7 @@ from src.utils.text import TextUtils
 from src.utils.md import MarkdownUtils
 from src.llm_api.open import OpenAPI
 
-from src.article_api.article import Article
+from src.article_api.article_api import ArticleAPI
 
 # Global Parameters
 N = 10
@@ -99,34 +99,6 @@ def setup_parser():
 
     return args
 
-##
-# Utils
-def check_title(title1, title2, message, abort=False):
-    if TextUtils.same(title1, title2):
-        return True
-    return process_warning(message, abort)
-
-
-def _format_entry(string, length):
-    return string.lower().ljust(length,".")[:length].replace(" ", ".")
-
-def generate_sbkey(title, author, year):
-    author_last_name = TextUtils.get_last_name(author)
-    author_last_name = _format_entry(author_last_name, 6)
-
-    year = str(year)
-    year = year if year.isdigit() else "."
-    year = _format_entry(year, 4)
-
-    title_words = TextUtils.clean(title).split()
-    title_first_word = _format_entry(title_words[0], 6)
-    title_first_char = _format_entry(''.join([word[0] for word in title_words]), 16)
-    
-    sbkey = f"{author_last_name}{year}{title_first_word}{title_first_char}"
-    #TODO: Move this part to other
-    # DB.append_article_db(sbkey, title, author, year)
-
-    return sbkey
 
 ##
 # DB
@@ -189,7 +161,7 @@ class PaperDB:
 def unstructured_reference_to_sbkey(reference_list):
     logger.debug(f"Creating SBKey from unstructured reference:\n> {len(reference_list)} entries")
     structured_references = OpenAPI.article_data_extraction(reference_list)
-    sbkey_list = [generate_sbkey(ref["title"], ref["first_author"], ref["year"]) for ref in structured_references]
+    sbkey_list = [TextUtils.generate_sbkey(ref["title"], ref["first_author"], ref["year"]) for ref in structured_references]
 
     logger.debug(f"> Created {len(sbkey_list)} SBKeys")
     return sbkey_list
@@ -199,7 +171,7 @@ def unstructured_reference_to_sbkey(reference_list):
 from datetime import datetime
 
 def generate_key(metadata):
-    return generate_sbkey(metadata["title"], metadata["author"][0], metadata["year"])
+    return TextUtils.generate_sbkey(metadata["title"], TextUtils.get_first_string(metadata["author"]), metadata["year"])
 
 def create_embedding(text:dict):
     logger.debug("Creating embeddings")
@@ -334,7 +306,7 @@ if __name__ == "__main__":
 
     data = {}
     if args.article:
-        data = Article.get_data(query_title, metadata["author"][0])
+        data = ArticleAPI.get_data(query_title, metadata["author"][0])
 
     query_summary = data.get("summary") or data.get("ads_abstract")
 

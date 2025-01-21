@@ -75,3 +75,20 @@ class TestTextUtils:
     ])
     def test_similar(self, text1, text2, expected):
         assert TextUtils.similar(text1, text2) == expected
+        
+    @pytest.mark.parametrize("title, author, year, expected", [
+        (
+            "The Test Title", 
+            "Test, Author", 
+            "2099", 
+            "test..2099the...ttt............."
+        ),
+        (
+            "LongerFirst a a a a a a a a a a a a a a a a a a a a", 
+            "LongTest, Author", 
+            2099, 
+            "longte2099longerlaaaaaaaaaaaaaaa"
+        )
+    ])
+    def test_key_generation(self, title, author, year, expected):
+        assert TextUtils.generate_sbkey(title, author, year) == expected

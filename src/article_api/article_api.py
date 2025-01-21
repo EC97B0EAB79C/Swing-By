@@ -14,7 +14,7 @@ from src.llm_api.open import OpenAPI
 
 logger = logging.getLogger(__name__)
 
-class Article:
+class ArticleAPI:
     ##
     # Getting Data
     @classmethod
@@ -252,5 +252,5 @@ if __name__ == "__main__":
          "Fukagata, Koji")
     ]
     for title, author in data:
-        print(Article.get_data(title, author))
+        print(ArticleAPI.get_data(title, author))
         print()

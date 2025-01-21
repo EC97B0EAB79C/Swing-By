@@ -50,3 +50,24 @@ class TextUtils:
         if isinstance(value, str):
             return value
         return ""
+
+    @staticmethod
+    def format_entry(string, length):
+        return string.lower().ljust(length,".")[:length].replace(" ", ".")
+    
+    @classmethod
+    def generate_sbkey(self, title, author, year):
+        author_last_name = self.get_last_name(author)
+        author_last_name = self.format_entry(author_last_name, 6)
+
+        year = str(year)
+        year = year if year.isdigit() else "."
+        year = self.format_entry(year, 4)
+
+        title_words = self.clean(title).split()
+        title_first_word = self.format_entry(title_words[0], 6)
+        title_first_char = self.format_entry(''.join([word[0] for word in title_words]), 16)
+        
+        sbkey = f"{author_last_name}{year}{title_first_word}{title_first_char}"
+
+        return sbkey

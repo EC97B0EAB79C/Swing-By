@@ -3,7 +3,7 @@ import pytest
 from src.article_api.arxiv_api import ArxivQuery
 from src.article_api.crossref_api import CrossrefQuery
 from src.article_api.ads_api import AdsQuery
-from src.article_api.article import Article
+from src.article_api.article_api import ArticleAPI
 
 class TestArxivQuery:
     @pytest.mark.parametrize("title, author, id", [
@@ -122,31 +122,31 @@ class TestBasicData:
         return 2023
 
     def test_get_basic_data_none(self):
-        assert Article.get_basic_data() is None
+        assert ArticleAPI.get_basic_data() is None
 
     def test_get_basic_data_doi(self, doi, year):
-        result = Article.get_basic_data(doi=doi)
+        result = ArticleAPI.get_basic_data(doi=doi)
         assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
         assert int(result["year"]) == year
 
     def test_get_basic_data_bibcode(self, bibcode, year):
-        result = Article.get_basic_data(bibcode=bibcode)
+        result = ArticleAPI.get_basic_data(bibcode=bibcode)
         assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
         assert int(result["year"]) == year
 
     def test_get_basic_data_title(self, title, year):
-        result = Article.get_basic_data(title=title)
+        result = ArticleAPI.get_basic_data(title=title)
         assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
         assert int(result["year"]) == year
 
     def test_get_basic_data_title_author(self, title, author, year):
-        result = Article.get_basic_data(title=title, first_author=author)
+        result = ArticleAPI.get_basic_data(title=title, first_author=author)
         assert result is not None
         assert result["first_author"] is not None
         assert result["title"] is not None
@@ -159,7 +159,7 @@ class TestBasicData:
         ("Srivastava P. Precipitation downscaling with spatiotemporal video diffusion. 2023.")
     ])
     def test_get_basic_data_unstructured(self, unstructured, year):
-        result = Article.get_basic_data_with_unstructured([unstructured])
+        result = ArticleAPI.get_basic_data_with_unstructured([unstructured])
         assert result is not None
         result = result[0]
         assert result["first_author"] is not None
@@ -190,7 +190,7 @@ class TestGetData:
          ["arxiv_summary", "crossref_abstract", "crossref_abstract", "ads_abstract", "ads_reference"])
     ])
     def test_get_data(self, title, author, data, notnull):
-        result = Article.get_data(title, author)
+        result = ArticleAPI.get_data(title, author)
         assert result is not None
         for key in data:
             assert result[key] == data[key]
