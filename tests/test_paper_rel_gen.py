@@ -1,6 +1,6 @@
 import pytest
 
-from src.paper_rel_gen import *
+from paper_rel_gen import *
 
 class TestSBKeyGeneration:
     @pytest.mark.parametrize("title, author, year, expected", [
@@ -18,4 +18,9 @@ class TestSBKeyGeneration:
         )
     ])
     def test_key_generation(self, title, author, year, expected):
-        assert generate_sbkey(title, author, year) == expected
+        data = {
+            "title": title,
+            "author": author,
+            "year": year
+        }
+        assert generate_key(data) == expected
