@@ -15,6 +15,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.MODEL_TOKEN }}
+      ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
+      TEST: ${{ secrets.TEST }}
 
     steps:
     - uses: actions/checkout@v4
@@ -34,10 +38,6 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     
     - name: Test with pytest
-      env:
-        GITHUB_TOKEN: ${{ secrets.MODEL_TOKEN }}
-        ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
-        TEST: "test value"
       run: |
         echo $TEST
         pytest
