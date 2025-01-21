@@ -5,7 +5,7 @@ name: Python application
 
 on:
   push:
-    branches: [ "refactor" ]
+    branches: [ "refactor", "pipeline-test" ]
   pull_request:
     branches: [ "pipeline-test" ]
 
@@ -36,7 +36,7 @@ jobs:
     
     - name: Test with pytest
       env:
-        GITHUB_TOKEN: ${{ secrets.MODEL_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
       run: |
         pytest
