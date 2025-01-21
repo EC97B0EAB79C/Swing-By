@@ -1,4 +1,4 @@
 import os
 
-print(os.getenv("TEST2"))
-print(os.getenv("TEST"))
+print("Test2: " + os.getenv("TEST2"))
+print("Test: " + os.getenv("TEST"))

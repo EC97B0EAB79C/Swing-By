@@ -40,8 +40,5 @@ jobs:
     
     - name: Test with pytest
       run: |
-        echo $TEST
-        echo $TEST2
-        ls tests
         python tests/test.py
         # pytest
