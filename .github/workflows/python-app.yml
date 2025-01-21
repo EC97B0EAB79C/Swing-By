@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   test:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -38,7 +37,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.MODEL_TOKEN }}
         ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
-        TEST: ${{ secrets.TEST }}
+        TEST: "test value"
       run: |
         echo $TEST
         pytest
