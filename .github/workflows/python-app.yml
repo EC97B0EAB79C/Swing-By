@@ -15,6 +15,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    environment: TEST_ENV
     env:
       GITHUB_TOKEN: ${{ secrets.MODEL_TOKEN }}
       ADS_API_KEY: ${{ secrets.ADS_API_KEY }}
