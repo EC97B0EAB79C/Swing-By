@@ -42,4 +42,5 @@ jobs:
       run: |
         echo $TEST
         echo $TEST2
+        python tests/test.py
         # pytest
