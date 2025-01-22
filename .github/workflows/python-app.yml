@@ -47,5 +47,4 @@ jobs:
     
     - name: Test with pytest
       run: |
-        echo "Running tests"
-        # pytest
+        pytest
