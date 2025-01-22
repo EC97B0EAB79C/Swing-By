@@ -46,6 +46,10 @@ class TestMarkdownUtils:
         result = MarkdownUtils.extract_bibtex(bibtex_test_data)
         assert result == bibtex_dict
 
+    #TODO
+    def test_extract_section(self):
+        pass
+
     def test_create_md_text(self, bibtex_dict):
         md_text = MarkdownUtils.create_md_text(bibtex_dict, "This is a test")
         assert md_text.startswith("---\n")
@@ -63,18 +67,18 @@ class TestTextUtils:
 
     @pytest.mark.parametrize("text1, text2, expected", [
         ("Test, text!", "test text", True),
-        ("Test, text!", "another test text", False),
-    ])
-    def test_same(self, text1, text2, expected):
-        assert TextUtils.same(text1, text2) == expected
-
-    @pytest.mark.parametrize("text1, text2, expected", [
-        ("Test, text!", "test text", True),
         ("This is a test for text similarity", "This is test for text similarity", True),
         ("Test, text!", "another test text", False),
     ])
     def test_similar(self, text1, text2, expected):
         assert TextUtils.similar(text1, text2) == expected
+
+    @pytest.mark.parametrize("text1, text2, expected", [
+        ("Test, text!", "test text", True),
+        ("Test, text!", "another test text", False),
+    ])
+    def test_same(self, text1, text2, expected):
+        assert TextUtils.same(text1, text2) == expected
         
     @pytest.mark.parametrize("title, author, year, expected", [
         (
@@ -92,3 +96,7 @@ class TestTextUtils:
     ])
     def test_key_generation(self, title, author, year, expected):
         assert TextUtils.generate_sbkey(title, author, year) == expected
+
+    #TODO
+    def test_trim_lines(self):
+        pass

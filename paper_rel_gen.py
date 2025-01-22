@@ -1,15 +1,9 @@
 # Standard library imports
 import logging
-import os
-import re
 
 # Third-party imports
-import bibtexparser
 import pandas
-import yaml
-import json
 import numpy as np
-import requests
 
 # Internal imports
 from src.utils.file import FileUtils
@@ -18,6 +12,9 @@ from src.utils.md import MarkdownUtils
 from src.llm_api.open import OpenAPI
 
 from src.article_api.article_api import ArticleAPI
+
+from src.knowledge.knowledge import Knowledge
+from src.knowledge.article import Article
 
 # Global Parameters
 N = 10
@@ -232,62 +229,6 @@ def create_keywords(title, summary, body, keyword_example):
     logger.debug("> Created keywords")
     return keywords
 
-
-def organize_db_entry(data, metadata, embeddings, keywords):
-    logger.debug("Creating DB entry")
-    entry = {}
-    # Keys
-    entry["arxiv_id"] = data["arxiv_id"]
-    entry["bibcode"] = data["ads_bibcode"]
-    entry["doi"] = data["arxiv_doi"] or data["crossref_doi"] or data["ads_doi"]
-    entry["key"] = metadata["key"]
-    entry["filename"] = os.path.basename(args.filename)
-
-    # References
-    entry["ref"] = list(set().union(data["crossref_reference"] or [], data["ads_reference"] or []))
-    entry["cited_by"] = []
-
-    # Metadata
-    entry["title"] = metadata["title"]
-    entry["author"] = metadata["author"]
-    entry["year"] = metadata["year"]
-    entry["keywords"] = keywords
-
-    entry["embedding_title"] = embeddings.get("embedding_title", np.nan)
-    entry["embedding_body"] = embeddings.get("embedding_body", np.nan)
-    entry["embedding_summary"] = embeddings.get("embedding_summary", np.nan)
-    
-    return entry
-
-def organize_md_metadata(data, metadata, keywords):
-    logger.debug("Creating MD metadata")
-    md_metadata = {}
-    
-    md_metadata["key"] = metadata["key"]
-    md_metadata["updated"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    md_metadata["created"] = str(data.get("created") or md_metadata["updated"])
-    
-    md_metadata["title"] = metadata["title"]
-    md_metadata["author"] = metadata["author"]
-    md_metadata["year"] = metadata["year"]
-    md_metadata["tags"] = ["Paper"] + keywords
-    md_metadata["category"] = keywords[0]
-
-    return md_metadata
-
-    # def append_reference(doi, ref_doi):
-#     global ref_db
-#     if doi is None or ref_doi is None:
-#         return
-#     for ref in ref_doi:
-#         logger.debug(f"> Adding relation '{ref}' <- '{doi}'")
-#         if doi in ref_db['doi'].values:
-#             ref_db.loc[ref_db['doi'] == ref, 'ref'].apply(lambda x: x.append(doi))
-#         else:
-#             new_row = pandas.DataFrame({'doi': [ref], 'ref': [[doi]]})
-#             ref_db = pandas.concat([ref_db, new_row], ignore_index=True)
-
-
 ##
 # Processing article
 if __name__ == "__main__":
@@ -296,17 +237,21 @@ if __name__ == "__main__":
     DB = PaperDB()
 
     # Process input file
-    markdown = FileUtils.read_lines(args.filename)
-    metadata_yaml, body = MarkdownUtils.extract_yaml(markdown)
-    metadata_bibtex = MarkdownUtils.extract_bibtex(body)
-    metadata = metadata_yaml | metadata_bibtex
-    metadata["key"] = generate_key(metadata)
 
-    query_title = metadata.get("title") or metadata.get("name") or args.filename
+    if args.article:
+        note = Article(args.filename)
+    else:
+        note = Knowledge(args.filename)
+    note.metadata["key"] = generate_key(note.metadata)
+
+    query_title = note.metadata.get("title") or note.metadata.get("name") or note.file_name
 
     data = {}
     if args.article:
-        data = ArticleAPI.get_data(query_title, metadata["author"][0])
+        data = ArticleAPI.get_data(
+            query_title, 
+            TextUtils.get_author(note.metadata["author"]), 
+            note.metadata["year"])
 
     query_summary = data.get("summary") or data.get("ads_abstract")
 
@@ -315,7 +260,7 @@ if __name__ == "__main__":
         {
             "title": query_title,
             "summary": query_summary,
-            "body": body
+            "body": note.body
         }
     )
 
@@ -323,7 +268,11 @@ if __name__ == "__main__":
     keyword_example = None
     if type(DB.paper_db) == pandas.DataFrame:
         keyword_example = get_keyword_example(embeddings)
-    keywords = create_keywords(metadata["title"], query_summary, body, keyword_example)
+    keywords = create_keywords(
+        query_title, 
+        query_summary, 
+        note.body, 
+        keyword_example)
 
     if args.keyword_only:
         for keyword in keywords:
@@ -331,13 +280,16 @@ if __name__ == "__main__":
         exit()
 
     # Write MD file
-    md_metadata = organize_md_metadata(data, metadata, keywords)
-    md_content = MarkdownUtils.create_md_text(md_metadata, body)
+    note.metadata["keywords"] = keywords
+    md_content = MarkdownUtils.create_md_text(
+        note.md_metadata(), 
+        note.body)
     FileUtils.write_file(args.filename, md_content)
 
     # Add entry to DB
-    new_entry = organize_db_entry(data, metadata, embeddings, keywords)
-    DB.append_paper_db(new_entry)
+    DB.append_paper_db(
+        note.db_entry(embeddings)
+    )
     DB.save()
 
-    print(f"Created data for {metadata["key"]}")
+    print(f"Created data for {note.metadata["key"]}")
