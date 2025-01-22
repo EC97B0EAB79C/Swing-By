@@ -71,3 +71,10 @@ class TextUtils:
         sbkey = f"{author_last_name}{year}{title_first_word}{title_first_char}"
 
         return sbkey
+
+    @staticmethod
+    def trim_lines(text, start, end):
+        text = text.strip("\n")
+        trimmed = text[start:end].strip()
+        retained = text[:start] + text[end:]
+        return trimmed, retained
