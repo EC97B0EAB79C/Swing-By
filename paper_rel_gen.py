@@ -201,34 +201,6 @@ def get_keyword_example(embeddings):
     logger.debug(f"Related: {", ".join(keys) }")
     return list(keyword_example)
 
-def create_keywords(title, summary, body, keyword_example):
-    logger.debug("Creating keywords")
-    payload = ""
-    if keyword_example:
-        payload += "\n\nExamples:\n"
-        for e in keyword_example:
-            payload += f"{e}\n"
-        payload += "---\n\n"
-
-    payload = f"title: {title}\n"
-    payload += f"summary:\n{summary}\n\n" if summary else ""
-    payload += f"body:\n{body}"
-
-    keywords = OpenAPI.keyword_extraction(payload, N, RATIO)
-
-    try:
-        assert len(keywords) == N
-    except:
-        if not process_warning(
-            KEYWORD_WARNING_TEXT.format(count = N, keywords = keywords), 
-            abort=True
-            ):
-            logger.fatal("\033[31mABORTED\033[0m")
-            exit()
-
-    logger.debug("> Created keywords")
-    return keywords
-
 ##
 # Processing article
 if __name__ == "__main__":
@@ -268,11 +240,8 @@ if __name__ == "__main__":
     keyword_example = None
     if type(DB.paper_db) == pandas.DataFrame:
         keyword_example = get_keyword_example(embeddings)
-    keywords = create_keywords(
-        query_title, 
-        query_summary, 
-        note.body, 
-        keyword_example)
+    note.create_keywords(keyword_example)
+    keywords = note.metadata["keywords"]
 
     if args.keyword_only:
         for keyword in keywords:

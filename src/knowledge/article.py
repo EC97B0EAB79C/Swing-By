@@ -3,6 +3,8 @@ from src.knowledge.knowledge import Knowledge
 from src.utils.md import MarkdownUtils
 
 class Article(Knowledge):
+    ##
+    # Initialize the Article class
     def __init__(self,
                  file_name,
                  ):
@@ -14,7 +16,23 @@ class Article(Knowledge):
     def _extract_data(self):
         bibtex_metadata = MarkdownUtils.extract_bibtex(self.body)
         self.metadata.update(bibtex_metadata)
+
+    ##
+    # Create keywords
+    def create_keywords(self, example=None):
+        payload = f"title: {self.metadata.get('title')}\n"
         
+        summary = self.summary()
+        if summary:
+            payload += f"summary:\n {summary}\n"
+        payload += f"body:\n{self.body}\n"
+
+        super().create_keywords(example, payload)
+
+    
+
+    ##
+    # Create entries and metadata
     def db_entry(self, embeddings):
         result =  super().db_entry(embeddings)
         # Keys
@@ -48,3 +66,9 @@ class Article(Knowledge):
         result["tags"] = ["Paper"] + result["tags"]
 
         return result
+
+    def summary(self):
+        return self.metadata.get("arxiv_summary") or self.metadata.get("ads_abstract") or self.metadata.get("crossref_abstract")
+
+    def fetch_data(self):
+        super().fetch_data()
