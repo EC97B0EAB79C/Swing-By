@@ -201,6 +201,7 @@ def get_keyword_example(embeddings):
     logger.debug(f"Related: {", ".join(keys) }")
     return list(keyword_example)
 
+
 ##
 # Processing article
 if __name__ == "__main__":
@@ -242,6 +243,7 @@ if __name__ == "__main__":
         keyword_example = get_keyword_example(embeddings)
     note.create_keywords(keyword_example)
     keywords = note.metadata["keywords"]
+
 
     if args.keyword_only:
         for keyword in keywords:
