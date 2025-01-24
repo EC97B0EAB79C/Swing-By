@@ -1,6 +1,10 @@
 
+from src.api.article import ArticleAPI
+
 from src.knowledge.knowledge import Knowledge
+
 from src.utils.md import MarkdownUtils
+from src.utils.text import TextUtils
 
 class Article(Knowledge):
     ##
@@ -29,7 +33,14 @@ class Article(Knowledge):
 
         super().create_keywords(example, payload)
 
-    
+    ##
+    # Create embeddings
+    def create_embeddings(self):
+        text = [
+            self.summary(),
+        ]
+        result = super().create_embeddings(text) 
+        self.metadata["embedding_summary"] = result[0]  
 
     ##
     # Create entries and metadata
@@ -72,3 +83,9 @@ class Article(Knowledge):
 
     def fetch_data(self):
         super().fetch_data()
+
+        data = ArticleAPI.get_data(
+            self.metadata.get("title"), 
+            TextUtils.get_author(self.metadata.get("author")), 
+            self.metadata.get("year"))
+        self.metadata.update(data)

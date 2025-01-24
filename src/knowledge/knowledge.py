@@ -54,6 +54,20 @@ class Knowledge:
 
         return query
 
+    ##
+    # Create embeddings
+    def create_embeddings(self, additional_data):
+        text = [
+            self.metadata.get("title"),
+            self.body
+        ] + additional_data
+
+        embeddings = OpenAPI.create_embedding(text)
+
+        self.metadata["embedding_title"] = embeddings[0]
+        self.metadata["embedding_body"] = embeddings[1]
+
+        return embeddings[:2]
     
     ##
     # Create entries and metadata
