@@ -51,6 +51,7 @@ class ArticleAPI:
         data = self._get_data(data)
         data = self._get_missing_data(data)
 
+        #TODO Convert references to SBKeys
         return data
 
     @classmethod

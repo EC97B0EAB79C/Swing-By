@@ -3,15 +3,11 @@ import logging
 
 # Third-party imports
 import pandas
-import numpy as np
 
 # Internal imports
 from src.utils.file import FileUtils
 from src.utils.text import TextUtils
 from src.utils.md import MarkdownUtils
-from src.llm_api.open import OpenAPI
-
-from src.article_api.article_api import ArticleAPI
 
 from src.knowledge.base import KnowledgeBase
 from src.knowledge.knowledge import Knowledge
@@ -97,19 +93,8 @@ def setup_parser():
 
     return args
 
-
-def unstructured_reference_to_sbkey(reference_list):
-    logger.debug(f"Creating SBKey from unstructured reference:\n> {len(reference_list)} entries")
-    structured_references = OpenAPI.article_data_extraction(reference_list)
-    sbkey_list = [TextUtils.generate_sbkey(ref["title"], ref["first_author"], ref["year"]) for ref in structured_references]
-
-    logger.debug(f"> Created {len(sbkey_list)} SBKeys")
-    return sbkey_list
-
 ##
 # Data processing
-from datetime import datetime
-
 def generate_key(metadata):
     return TextUtils.generate_sbkey(metadata["title"], TextUtils.get_first_string(metadata["author"]), metadata["year"])
 
