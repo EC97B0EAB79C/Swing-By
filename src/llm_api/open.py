@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 EMBEDDING_MODEL = "text-embedding-3-small"
 KEYWORD_MODEL = "gpt-4o-mini"
 REFERECNCE_MODEL = "gpt-4o-mini"
+SUMMARIZE_MODEL = "gpt-4o-mini"
 
 class OpenAPI:
     client = OpenAI(base_url=API_ENDPOINT, api_key=TOKEN)
@@ -122,3 +123,43 @@ Responses are concise, focused on accurately extracting and formatting the data,
 
         logger.debug("> Extracted article data")
         return structured_references
+
+    @classmethod
+    def summarize(self, text: str) -> str:
+        """
+        Summarize text
+
+        Args:
+            text (str): Text to summarize
+
+        Returns:
+            str: Summarized text
+        """
+
+        logger.debug("> Summarizing text with OpenAI")
+        GPT_INSTRUCTIONS = """
+This GPT is designed to create a single sentence summary of the text user provides.
+The summary must capture the core information and key concepts that would help match this text with related questions or documents.
+Focus on preserving the main topic, key entities, and central arguments while including specific terminology from the original text.
+Avoid including minor details, examples, or supporting evidence.
+The summary should be concise yet informative enough to determine the text's relevance to other materials.
+"""
+        messages = [
+            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role": "user", "content": text},
+        ]
+
+        logger.debug("> Sending OpenAI completion API request")
+        completion = self.client.beta.chat.completions.parse(
+            model = SUMMARIZE_MODEL,
+            messages = messages
+        )
+
+        logger.debug("> Recieved OpenAI completion API responce")
+        logger.debug(f"> {completion.usage}")
+        chat_response = completion.choices[0].message
+        summary = chat_response.content
+
+        logger.debug("> Summarized text")
+        return summary
+    
