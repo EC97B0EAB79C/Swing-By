@@ -45,6 +45,12 @@ class MarkdownUtils:
             return {}
 
     @staticmethod
+    def extract_code_blocks(body: str):
+        pattern = r'```(.*?)```'
+        matches = re.findall(pattern, body, re.DOTALL | re.IGNORECASE)
+        return matches
+
+    @staticmethod
     def extract_section(body: str, section_name: str):
         body = body.split('\n')
         in_section = False
