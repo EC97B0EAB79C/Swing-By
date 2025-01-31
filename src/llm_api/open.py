@@ -149,7 +149,8 @@ The summary should be concise yet informative enough to determine the text's rel
         logger.debug("> Finding root cause of error with OpenAI")
         GPT_INSTRUCTIONS = """
 This GPT is designed to Analyze the provided error logs, identify and extract the most relevant error that best explains the root cause of the failure.
-Return only this error and its complete traceback in the following JSON format: {"error_message": string, "traceback": string}.
+Return only this error, its location and its complete traceback in the following JSON format: 
+{"error_message": string, "location": string, "traceback": string}.
 """
         messages = [
             {"role":"system", "content": GPT_INSTRUCTIONS},
