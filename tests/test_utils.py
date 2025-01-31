@@ -47,6 +47,10 @@ class TestMarkdownUtils:
         assert result == bibtex_dict
 
     #TODO
+    def test_extract_code_blocks(self):
+        pass
+    
+    #TODO
     def test_extract_section(self):
         pass
 
