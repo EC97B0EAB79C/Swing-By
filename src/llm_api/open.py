@@ -17,21 +17,53 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 KEYWORD_MODEL = "gpt-4o-mini"
 REFERECNCE_MODEL = "gpt-4o-mini"
 SUMMARIZE_MODEL = "gpt-4o-mini"
+ERROR_ANALYSIS_MODEL = "gpt-4o-mini"
 
 class OpenAPI:
     client = OpenAI(base_url=API_ENDPOINT, api_key=TOKEN)
 
     @classmethod
-    def embedding(self, text: list[str]):
+    def request_for_json(self, model, messages):
+        logger.debug("> Sending OpenAI completion API request")
+        completion = self.client.beta.chat.completions.parse(
+            model = model,
+            messages = messages,
+            response_format = { "type": "json_object" }
+        )
+
+        logger.debug("> Recieved OpenAI completion API responce")
+        logger.debug(f"> {completion.usage}")
+        chat_response = completion.choices[0].message
+        json_data = json.loads(chat_response.content)
+
+        return json_data
+    
+    @classmethod
+    def request_for_text(self, model, messages):
+        logger.debug("> Sending OpenAI completion API request")
+        completion = self.client.beta.chat.completions.parse(
+            model = model,
+            messages = messages,
+        )
+
+        logger.debug("> Recieved OpenAI completion API responce")
+        logger.debug(f"> {completion.usage}")
+        chat_response = completion.choices[0].message
+        text_data = chat_response.content
+
+        return text_data
+
+    @classmethod
+    def embedding(self, text: list[str]) -> list[np.array]:
         logger.debug("> Embedding texts with OpenAI")
         logger.debug("> Sending OpenAI embedding API request")
         embedding_response = self.client.embeddings.create(
             input = text,
             model = EMBEDDING_MODEL,
         )
+
         logger.debug("> Recieved OpenAI embedding API responce")
         logger.debug(f"> {embedding_response.usage}")
-
         embeddings = []
         for data in embedding_response.data:
             embeddings.append(np.array(data.embedding))
@@ -67,34 +99,14 @@ Return the list in json format with key "keywords" for keyword list.
             {"role":"system", "content": GPT_INSTRUCTIONS},
             {"role": "user", "content": text},
         ]
-
-        logger.debug("> Sending OpenAI completion API request")
-        completion = self.client.beta.chat.completions.parse(
-            model = KEYWORD_MODEL,
-            messages = messages,
-            response_format = { "type": "json_object" }
-        )
-
-        logger.debug("> Recieved OpenAI completion API responce")
-        logger.debug(f"> {completion.usage}")
-        chat_response = completion.choices[0].message
-        json_data = json.loads(chat_response.content)
+        json_data = self.request_for_json(KEYWORD_MODEL, messages)
         keywords = json_data["keywords"]
 
         logger.debug("> Created keywords")
         return keywords
     
     @classmethod
-    def article_data_extraction(self, reference_list: list[str]):
-        """
-        Extract article data from reference list
-
-        Args:
-            reference_list (list[str]): List of references to extract data from
-        Returns:
-            list[dict]: List of structured references
-        """
-
+    def article_data_extraction(self, reference_list: list[str]) -> list[dict]:
         logger.debug("> Extracting article data with OpenAI")
         GPT_INSTRUCTIONS = """
 This GPT specializes in parsing unstructured strings of academic references and extracting key components such as the first author's name (formatted as "last_name, first_name"), the title of the work, and the publication year.
@@ -107,18 +119,7 @@ Responses are concise, focused on accurately extracting and formatting the data,
             {"role":"system", "content": GPT_INSTRUCTIONS},
             {"role": "user", "content": "\n".join(reference_list)},
         ]
-
-        logger.debug("> Sending OpenAI completion API request")
-        completion = self.client.beta.chat.completions.parse(
-            model = REFERECNCE_MODEL,
-            messages = messages,
-            response_format = { "type": "json_object" }
-        )
-
-        logger.debug("> Recieved OpenAI completion API responce")
-        logger.debug(f"> {completion.usage}")
-        chat_response = completion.choices[0].message
-        json_data = json.loads(chat_response.content)
+        json_data = self.request_for_json(REFERECNCE_MODEL, messages)
         structured_references = json_data["references"]
 
         logger.debug("> Extracted article data")
@@ -126,16 +127,6 @@ Responses are concise, focused on accurately extracting and formatting the data,
 
     @classmethod
     def summarize(self, text: str) -> str:
-        """
-        Summarize text
-
-        Args:
-            text (str): Text to summarize
-
-        Returns:
-            str: Summarized text
-        """
-
         logger.debug("> Summarizing text with OpenAI")
         GPT_INSTRUCTIONS = """
 This GPT is designed to create a single sentence summary of the text user provides.
@@ -148,18 +139,23 @@ The summary should be concise yet informative enough to determine the text's rel
             {"role":"system", "content": GPT_INSTRUCTIONS},
             {"role": "user", "content": text},
         ]
-
-        logger.debug("> Sending OpenAI completion API request")
-        completion = self.client.beta.chat.completions.parse(
-            model = SUMMARIZE_MODEL,
-            messages = messages
-        )
-
-        logger.debug("> Recieved OpenAI completion API responce")
-        logger.debug(f"> {completion.usage}")
-        chat_response = completion.choices[0].message
-        summary = chat_response.content
+        summary = self.request_for_text(SUMMARIZE_MODEL, messages)
 
         logger.debug("> Summarized text")
         return summary
     
+    @classmethod
+    def analyze_error(self, error: str) -> dict:
+        logger.debug("> Finding root cause of error with OpenAI")
+        GPT_INSTRUCTIONS = """
+This GPT is designed to Analyze the provided error logs, identify and extract the most relevant error that best explains the root cause of the failure.
+Return only this error and its complete traceback in the following JSON format: {"error_message": string, "traceback": string}.
+"""
+        messages = [
+            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role": "user", "content": error},
+        ]
+        json_data = self.request_for_json(ERROR_ANALYSIS_MODEL, messages)
+
+        logger.debug("> Found root cause of error")
+        return json_data
