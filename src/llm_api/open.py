@@ -54,6 +54,26 @@ class OpenAPI:
         return text_data
 
     @classmethod
+    def qna(self, query: str, example:str ) -> str:
+        logger.debug("> Finding answer with OpenAI")
+        GPT_INSTRUCTIONS = """
+This GPT is designed to answer questions.
+It will provide a concise and accurate response to the question provided.
+When possible, it will provide answers from given relevant documents.
+"""
+        messages = [
+            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role": "user", "content": example},
+            {"role": "user", "content": query},
+        ]
+        answer = self.request_for_text("gpt-4o-mini", messages)
+
+        logger.debug("> Found answer")
+        return answer
+
+
+
+    @classmethod
     def embedding(self, text: list[str]) -> list[np.array]:
         logger.debug("> Embedding texts with OpenAI")
         logger.debug("> Sending OpenAI embedding API request")

@@ -15,8 +15,6 @@ class DebugNote(Knowledge):
             file_name,
         )
         self._extract_data()
-        #TODO
-        self.metadata["key"] = "TODO"
 
     def _extract_data(self):
         self.issue_body, _, _ = MarkdownUtils.extract_section(self.body, "Issue")

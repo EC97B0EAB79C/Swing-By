@@ -8,6 +8,8 @@ import numpy as np
 
 from src.knowledge.knowledge import Knowledge
 
+from src.llm_api.open import OpenAI
+
 logger = logging.getLogger(__name__)
 
 class KnowledgeBase:
@@ -50,6 +52,27 @@ class KnowledgeBase:
         search_df["distance"] = search_df[key].apply(lambda x: np.linalg.norm(x - vector))
         search_df = search_df.sort_values(by='distance', ascending=False)
         return search_df[:n]
+
+    def qna(self, query):
+        query_embedding = OpenAI.create_embedding([query])[0]
+        related = self.vector_search("embedding_body", query_embedding)
+        example = "## Related\n"
+        for i, row in related.iterrows():
+            example += f" ### {row['title']}\n"
+            example += f"{self._load_note(row['key']).body}\n"
+
+        answer = OpenAI.answer(query, example)
+        print(answer)
+
+            
+    def _load_note(self, key):
+        #TODO: file location
+        if self.notes.get(key):
+            return self.notes[key]
+        else:
+            note = Knowledge(key)
+            self.notes[key] = note
+            return note
 
     #TODO Integrate with current KnowledgeBase
     # def append_article_db(self, sbkey, title, author, year):

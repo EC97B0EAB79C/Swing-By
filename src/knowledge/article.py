@@ -1,5 +1,5 @@
 
-from src.api.article import ArticleAPI
+from src.article_api.article_api import ArticleAPI
 
 from src.knowledge.knowledge import Knowledge
 
