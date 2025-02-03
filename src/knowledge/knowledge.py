@@ -74,6 +74,7 @@ class Knowledge:
     def db_entry(self, embeddings):
         result = {}
         result["key"] = self.metadata.get("key")
+        result["updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         result["keywords"] = self.metadata.get("keywords")
         result["file_name"] = os.path.basename(self.file_name)
         for k, v in embeddings.items():

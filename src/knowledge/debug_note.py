@@ -59,8 +59,20 @@ class DebugNote(Knowledge):
     # Create entries and metadata
     def db_entry(self, embeddings):
         result =  super().db_entry(embeddings)
+
+        result["status"] = self.metadata.get("status")
+        result["version"] = self.metadata.get("version")
         # Error message
         result["error_message"] = self.error_message
         result["error_location"] = self.error_location
+
+        return result
+
+    def md_metadata(self):
+        result =  super().md_metadata()
+
+        result["status"] = self.metadata.get("status")
+        result["version"] = self.metadata.get("version")
+        result["tags"] = result["tags"] + [result["status"], result["version"]]
 
         return result
