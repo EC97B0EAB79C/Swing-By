@@ -18,6 +18,7 @@ KEYWORD_MODEL = "gpt-4o-mini"
 REFERECNCE_MODEL = "gpt-4o-mini"
 SUMMARIZE_MODEL = "gpt-4o-mini"
 ERROR_ANALYSIS_MODEL = "gpt-4o-mini"
+QNA_MODEL = "gpt-4o-mini"
 
 class OpenAPI:
     client = OpenAI(base_url=API_ENDPOINT, api_key=TOKEN)
@@ -54,19 +55,28 @@ class OpenAPI:
         return text_data
 
     @classmethod
-    def qna(self, query: str, example:str ) -> str:
+    def qna(self, query: str, example:str ) -> dict:
         logger.debug("> Finding answer with OpenAI")
         GPT_INSTRUCTIONS = """
-This GPT is designed to answer questions.
-It will provide a concise and accurate response to the question provided.
-When possible, it will provide answers from given relevant documents.
+You are a specialized question-answering assistant designed to provide precise, evidence-based responses.
+Core Functions:
+1. Analyze questions thoroughly and provide accurate, well-structured answers
+2. Prioritize information from provided reference documents when available
+3. Maintain academic integrity through proper citation
+Guidelines:
+- Use clear, concise language while maintaining accuracy
+- Include inline citations using [n] format
+- Acknowledge limitations or uncertainties when present
+
+Return the answer in json format with key "answer".
+If given examples are referenced, return the list of referenced titles in json format with key "references".
 """
         messages = [
             {"role":"system", "content": GPT_INSTRUCTIONS},
             {"role": "user", "content": example},
             {"role": "user", "content": query},
         ]
-        answer = self.request_for_text("gpt-4o-mini", messages)
+        answer = self.request_for_json(QNA_MODEL, messages)
 
         logger.debug("> Found answer")
         return answer

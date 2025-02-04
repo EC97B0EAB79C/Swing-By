@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 from src.utils.file import FileUtils
 from src.utils.md import MarkdownUtils
@@ -14,6 +15,7 @@ class Knowledge:
                  ):
         self.file_name = file_name
         self._load_file()
+        self.key = Path(file_name).stem
         
     def _load_file(self):
         note_lines = FileUtils.read_lines(self.file_name)
@@ -56,13 +58,13 @@ class Knowledge:
 
     ##
     # Create embeddings
-    def create_embeddings(self, additional_data):
+    def create_embeddings(self, additional_data=[]):
         text = [
-            self.metadata.get("title"),
+            self.metadata.get("title", self.key),
             self.body
         ] + additional_data
 
-        embeddings = OpenAPI.create_embedding(text)
+        embeddings = OpenAPI.embedding(text)
 
         self.metadata["embedding_title"] = embeddings[0]
         self.metadata["embedding_body"] = embeddings[1]
@@ -71,22 +73,28 @@ class Knowledge:
     
     ##
     # Create entries and metadata
-    def db_entry(self, embeddings):
+    def embedding_dict(self):
+        return {
+            "embedding_title": self.metadata.get("embedding_title"),
+            "embedding_body": self.metadata.get("embedding_body")
+        }
+
+    def db_entry(self):
         result = {}
-        result["key"] = self.metadata.get("key")
+        result["key"] = self.key
         result["hash"] = self.hash
 
         result["updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         result["keywords"] = self.metadata.get("keywords")
         result["file_name"] = os.path.basename(self.file_name)
-        for k, v in embeddings.items():
+        for k, v in self.embedding_dict().items():
             result[k] = v
         
         return result
 
     def md_metadata(self):
         result = {}
-        result["key"] = self.metadata.get("key")
+        result["key"] = self.key
         result["updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         result["created"] = self.metadata.get("created") or result["updated"]
         result["tags"] = self.metadata.get("keywords")

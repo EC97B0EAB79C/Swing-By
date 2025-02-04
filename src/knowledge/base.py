@@ -6,20 +6,30 @@ import logging
 import pandas
 import numpy as np
 
-from src.knowledge.knowledge import Knowledge
+from typing import Type
 
-from src.llm_api.open import OpenAI
+from src.utils.config import Config
+from src.utils.file import FileUtils
+
+from src.knowledge.knowledge import Knowledge
+from src.knowledge.article import Article
+
+from src.llm_api.open import OpenAPI
 
 logger = logging.getLogger(__name__)
 
 class KnowledgeBase:
-    def __init__(self, db_path, note_directory):
-        self.db_path = db_path
-        self.note_directory = note_directory
-        # self._load_file_list()
+    def __init__(self, T: Type[Knowledge]):
+        self.T = T
+        self.db_path = os.path.join(Config.knowledgebase(), ".database", "db.h5")
+        self.note_directory = Config.knowledgebase()
+        self.notes = {}
         self._load_db()
 
+        self._process_new_files()
 
+    ##
+    # DB Related
     def _load_db(self):
         try:
             self.db = pandas.read_hdf(self.db_path, key="knowledge")
@@ -27,11 +37,10 @@ class KnowledgeBase:
         except Exception as e:
             logger.error(f"Error loading DB: {e}")
             logger.info("Creating new DB")
+            os.makedirs(os.path.join(Config.knowledgebase(), ".database"), exist_ok=True)
             self.db = pandas.DataFrame(columns=[
-                "key", 
-                "title", 
-                "keywords", 
-                "file_name", "file_hash"])
+                "key", "hash", "updated", "keywords", "file_name"    
+            ])
 
     def save_db(self):
         try:
@@ -53,38 +62,77 @@ class KnowledgeBase:
         search_df = search_df.sort_values(by='distance', ascending=False)
         return search_df[:n]
 
+    ##
+    # LLM Related
+    def _get_relevant(self, query):
+        query_embedding = OpenAPI.embedding([query])[0]
+        embedding_keys = self.db.filter(regex="^embedding_").keys()
+
+        related_rows = []
+        for key in embedding_keys:
+            related_rows.append(self.vector_search(key, query_embedding, n=5))
+        related_df = pandas.concat(related_rows).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
+        return related_df
+
     def qna(self, query):
-        query_embedding = OpenAI.create_embedding([query])[0]
-        related = self.vector_search("embedding_body", query_embedding)
-        example = "## Related\n"
+        related = self._get_relevant(query)
+
+        example = "Related\n"
         for i, row in related.iterrows():
-            example += f" ### {row['title']}\n"
-            example += f"{self._load_note(row['key']).body}\n"
+            example += f" # {row['title'] if 'title' in row else row['key']}\n"
+            example += f"{self._load_note(row['key'], row['file_name']).body}\n"
 
-        answer = OpenAI.answer(query, example)
-        print(answer)
+        answer = OpenAPI.qna(query, example)
+        return answer
 
-            
-    def _load_note(self, key):
-        #TODO: file location
+    ##
+    # Knowledge Management Related
+    def _load_note(self, key, file_name):
+        file_path = os.path.join(self.note_directory, file_name)
         if self.notes.get(key):
             return self.notes[key]
         else:
-            note = Knowledge(key)
+            note = self.T(file_path)
             self.notes[key] = note
             return note
 
-    #TODO Integrate with current KnowledgeBase
-    # def append_article_db(self, sbkey, title, author, year):
-    #     logger.debug("Appending article to DB")
-    #     new_df = pandas.DataFrame.from_dict([{
-    #         "key": sbkey,
-    #         "title": title,
-    #         "author": author,
-    #         "year": year
-    #     }])
-    #     if type(self.article_db) != pandas.DataFrame:
-    #         self.article_db = new_df
-    #         return
-    #     self.article_db = pandas.concat([self.article_db, new_df]).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
-    #     logger.debug(f"Appended article to DB")
+    def _new_files(self):
+        db_files = set(self.db["file_name"].tolist())
+        note_files = set(os.path.basename(f) for f in glob.glob(os.path.join(self.note_directory, "*.md")))
+        new = note_files - db_files
+        return [os.path.join(self.note_directory, f) for f in new]
+
+    def _process_new_files(self):
+        for file_path in self._new_files():
+            logger.debug(f"Processing new file: {file_path}")
+            note = self.T(file_path)
+            note.create_embeddings()
+            note.create_keywords()
+
+            entry = note.db_entry()
+            self.append_db_entry(entry)
+            self.notes[note.key] = note
+
+    def process_updated_files(self):
+        for i, row in self.db.iterrows():
+            file_path = os.path.join(self.note_directory, row["file_name"])
+            if FileUtils.calculate_hash(file_path) == row["hash"]:
+                continue
+            logger.debug(f"Processing updated file: {file_path}")
+            note = self.T(file_path)
+            note.create_embeddings()
+            note.create_keywords()
+
+            entry = note.db_entry()
+            self.db.loc[i] = entry
+            self.notes[note.key] = note
+
+
+if __name__ == "__main__":
+    kb = KnowledgeBase(Knowledge)
+    kb.process_updated_files()
+    kb.save_db()
+    result = (kb.qna("What did Guibas, John propoesd at 2021?"))
+    print(result["answer"])
+    for idx, ref in enumerate(result["references"]):
+        print(f"- [{idx+1}] {ref}")

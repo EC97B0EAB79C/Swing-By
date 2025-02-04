@@ -6,6 +6,7 @@ from src.knowledge.knowledge import Knowledge
 from src.utils.md import MarkdownUtils
 from src.utils.text import TextUtils
 
+#TODO Article API
 class Article(Knowledge):
     ##
     # Initialize the Article class
@@ -15,6 +16,7 @@ class Article(Knowledge):
         super().__init__(
             file_name,
         )
+        self.key = ""#TODO Create key
         self._extract_data()
 
     def _extract_data(self):
@@ -39,11 +41,17 @@ class Article(Knowledge):
         text = [
             self.summary(),
         ]
+        
         result = super().create_embeddings(text) 
         self.metadata["embedding_summary"] = result[0]  
 
     ##
     # Create entries and metadata
+    def embedding_dict(self):
+        return super().embedding_dict() + {
+            "embedding_summary": self.metadata.get("embedding_summary"),
+        }
+
     def db_entry(self, embeddings):
         result =  super().db_entry(embeddings)
         # Keys

@@ -14,6 +14,7 @@ class DebugNote(Knowledge):
         super().__init__(
             file_name,
         )
+        self.key = self.metadata.get("ID")
         self._extract_data()
 
     def _extract_data(self):
@@ -57,6 +58,12 @@ class DebugNote(Knowledge):
 
     ##
     # Create entries and metadata
+    def embedding_dict(self):
+        return super().embedding_dict() + {
+            "embedding_error_message": self.metadata.get("embedding_error_message"),
+            "embedding_error_traceback": self.metadata.get("embedding_error_traceback"),
+        }
+
     def db_entry(self, embeddings):
         result =  super().db_entry(embeddings)
 
