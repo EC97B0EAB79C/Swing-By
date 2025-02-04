@@ -11,7 +11,6 @@ class Knowledge:
     # Initialize the Knowledge class
     def __init__(self, 
                  file_name,
-                 
                  ):
         self.file_name = file_name
         self._load_file()
@@ -19,7 +18,7 @@ class Knowledge:
     def _load_file(self):
         note_lines = FileUtils.read_lines(self.file_name)
         self.metadata, self.body = MarkdownUtils.extract_yaml(note_lines)
-        self.hash = "" #TODO: Implement hash
+        self.hash = FileUtils.calculate_hash(self.file_name)
 
     ##
     # Create keywords

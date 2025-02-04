@@ -2,6 +2,7 @@ import pytest
 
 from src.utils.md import MarkdownUtils
 from src.utils.text import TextUtils
+from src.utils.file import FileUtils
 
 class TestMarkdownUtils:
     @pytest.fixture
@@ -104,3 +105,11 @@ class TestTextUtils:
     #TODO
     def test_trim_lines(self):
         pass
+
+
+class TestFileUtils:
+    @pytest.mark.parametrize("file_path, expected", [
+        ("tests/data/article.md", "231093aa25d7131244b1f70d4e1d7acfb79ceed6551242b374dfe17fd5ce6943d833ef405a10e262a69157ca40be5a3d59ab006e951bba259bf7d831d18cdc96"),
+    ])
+    def test_calculate_hash(self, file_path, expected):
+        assert FileUtils.calculate_hash(file_path) == expected
