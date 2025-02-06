@@ -26,7 +26,7 @@ class Knowledge:
     # Create keywords
     def create_keywords(self, example=None, payload=None):
         query = self._create_payload(example, payload)
-        self.metadata["keywords"] = OpenAPI.keyword_extraction(query)
+        self.metadata["keywords"] = OpenAPI.document_keyword_extraction(query)
         #TODO: Error handling?
 
     def _create_payload(self, example, payload=None):

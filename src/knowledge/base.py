@@ -65,12 +65,20 @@ class KnowledgeBase:
     ##
     # LLM Related
     def _get_relevant(self, query):
+        # Related by vector search
         query_embedding = OpenAPI.embedding([query])[0]
         embedding_keys = self.db.filter(regex="^embedding_").keys()
 
         related_rows = []
         for key in embedding_keys:
             related_rows.append(self.vector_search(key, query_embedding, n=5))
+        
+        # Related by keywords        
+        query_keywords = OpenAPI.query_keyword_generation(query)
+        keyword_matches = self.db[self.db['keywords'].apply(lambda x: any(k in query_keywords for k in x))]
+        if not keyword_matches.empty:
+            related_rows.append(keyword_matches)
+
         related_df = pandas.concat(related_rows).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
         return related_df
 
@@ -132,7 +140,8 @@ if __name__ == "__main__":
     kb = KnowledgeBase(Knowledge)
     kb.process_updated_files()
     kb.save_db()
-    result = (kb.qna("What did Guibas, John propoesd at 2021?"))
+    # result = (kb.qna("What did Guibas, John propoesd at 2021?"))
+    result = (kb.qna("What are some developments in deep learning?"))
     print(result["answer"])
     for idx, ref in enumerate(result["references"]):
         print(f"- [{idx+1}] {ref}")

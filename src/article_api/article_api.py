@@ -244,7 +244,7 @@ class ArticleAPI:
 
     @staticmethod
     def get_basic_data_with_unstructured(unstructured_data):
-        return OpenAPI.article_data_extraction(unstructured_data)
+        return OpenAPI.reference_parse(unstructured_data)
     
 if __name__ == "__main__":
     data = [

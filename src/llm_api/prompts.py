@@ -38,7 +38,7 @@ Guidelines:
 - Extract domain-specific terminology
 - Include common variations of key terms
 - Exclude generic question words (what, how, why)
-- Maintain search-optimized keyword order
+- Format all tags in lowercase with underscores
 
 Return the keyword list in json format with key "keywords".
 """

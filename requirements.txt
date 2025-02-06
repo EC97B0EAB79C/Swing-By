@@ -6,3 +6,4 @@ crossref-commons
 arxiv
 pandas
 numpy
+tables
