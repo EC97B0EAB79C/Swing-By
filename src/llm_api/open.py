@@ -25,6 +25,8 @@ QNA_MODEL = "gpt-4o-mini"
 class OpenAPI:
     client = OpenAI(base_url=API_ENDPOINT, api_key=TOKEN)
 
+    ##
+    # Base functions
     @classmethod
     def request_for_json(self, model, messages):
         logger.debug("> Sending OpenAI completion API request")
@@ -57,21 +59,6 @@ class OpenAPI:
         return text_data
 
     @classmethod
-    def qna(self, query: str, example:str ) -> dict:
-        logger.debug("> Finding answer with OpenAI")
-        messages = [
-            {"role":"system", "content": QNA_PROMPT},
-            {"role": "user", "content": example},
-            {"role": "user", "content": query},
-        ]
-        answer = self.request_for_json(QNA_MODEL, messages)
-
-        logger.debug("> Found answer")
-        return answer
-
-
-
-    @classmethod
     def embedding(self, text: list[str]) -> list[np.array]:
         logger.debug("> Embedding texts with OpenAI")
         logger.debug("> Sending OpenAI embedding API request")
@@ -89,8 +76,38 @@ class OpenAPI:
         logger.debug("> Created embedding vector")
         return embeddings
 
+    ##
+    # QnA functions
     @classmethod
-    def keyword_extraction(self, text, n=10, ratio=0.4) -> list[str]:
+    def qna(self, query: str, example:str ) -> dict:
+        logger.debug("> Finding answer with OpenAI")
+        messages = [
+            {"role":"system", "content": QNA_PROMPT},
+            {"role": "user", "content": example},
+            {"role": "user", "content": query},
+        ]
+        answer = self.request_for_json(QNA_MODEL, messages)
+
+        logger.debug("> Found answer")
+        return answer    
+    
+    ##
+    # Data generation functions
+    @classmethod
+    def query_keyword_generation(self, query:str) -> list[str]:
+        logger.debug("> Generating keywords with OpenAI")
+        messages = [
+            {"role":"system", "content": QUESTION_KEYWORD_GENERATION_PROMPT},
+            {"role": "user", "content": query},
+        ]
+        json_data = self.request_for_json(KEYWORD_MODEL, messages)
+        keywords = json_data["keywords"]
+
+        logger.debug("> Generated keywords")
+        return keywords
+
+    @classmethod
+    def document_keyword_extraction(self, text, n=10, ratio=0.4) -> list[str]:
         logger.debug("> Creating keywords with OpenAI")
         messages = [
             {"role":"system", "content": DOCUMENT_KEYWORD_GENERATION_PROMPT.format(n, n*ratio, n*(1-ratio))},
@@ -102,8 +119,10 @@ class OpenAPI:
         logger.debug("> Created keywords")
         return keywords
     
+    ##
+    # Data analysis functions
     @classmethod
-    def article_data_extraction(self, reference_list: list[str]) -> list[dict]:
+    def reference_parse(self, reference_list: list[str]) -> list[dict]:
         logger.debug("> Extracting article data with OpenAI")
         messages = [
             {"role":"system", "content": REFERENCE_PARSE_PROMPT},
