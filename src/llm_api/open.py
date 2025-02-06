@@ -7,6 +7,8 @@ import numpy as np
 # OpenAI related
 from openai import OpenAI
 
+from src.llm_api.prompts import *
+
 # Global variables
 TOKEN = os.environ["GITHUB_TOKEN"]
 API_ENDPOINT = "https://models.inference.ai.azure.com"
@@ -57,22 +59,8 @@ class OpenAPI:
     @classmethod
     def qna(self, query: str, example:str ) -> dict:
         logger.debug("> Finding answer with OpenAI")
-        GPT_INSTRUCTIONS = """
-You are a specialized question-answering assistant designed to provide precise, evidence-based responses.
-Core Functions:
-1. Analyze questions thoroughly and provide accurate, well-structured answers
-2. Prioritize information from provided reference documents when available
-3. Maintain academic integrity through proper citation
-Guidelines:
-- Use clear, concise language while maintaining accuracy
-- Include inline citations using [n] format
-- Acknowledge limitations or uncertainties when present
-
-Return the answer in json format with key "answer".
-If given examples are referenced, return the list of referenced titles in json format with key "references".
-"""
         messages = [
-            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role":"system", "content": QNA_PROMPT},
             {"role": "user", "content": example},
             {"role": "user", "content": query},
         ]
@@ -103,30 +91,9 @@ If given examples are referenced, return the list of referenced titles in json f
 
     @classmethod
     def keyword_extraction(self, text, n=10, ratio=0.4) -> list[str]:
-        """
-        Extract keywords from text using
-
-        Args:
-            text (str): Text to extract keywords from
-            n (int, optional): Number of keywords to extract. Defaults to 10.
-            ratio (float, optional): Ratio of general keywords to specific keywords. Defaults to 0.4.
-
-        Returns:
-            list[str]: List of keywords extracted
-        """
-
         logger.debug("> Creating keywords with OpenAI")
-        GPT_INSTRUCTIONS = f"""
-This GPT helps users generate a set of relevant keywords or tags based on the content of any note or text they provide.
-It offers concise, descriptive, and relevant tags that help organize and retrieve similar notes or resources later.
-The GPT will aim to provide up to {n} keywords, with 1 keyword acting as a category, {n*ratio} general tags applicable to a broad context, and {n - 1 - n*ratio} being more specific to the content of the note.
-It avoids suggesting overly generic or redundant keywords unless necessary.
-It will list the tags using underscores instead of spaces, ordered from the most general to the most specific.
-Every tag will be lowercase.
-Return the list in json format with key "keywords" for keyword list.
-"""
         messages = [
-            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role":"system", "content": DOCUMENT_KEYWORD_GENERATION_PROMPT.format(n, n*ratio, n*(1-ratio))},
             {"role": "user", "content": text},
         ]
         json_data = self.request_for_json(KEYWORD_MODEL, messages)
@@ -138,15 +105,8 @@ Return the list in json format with key "keywords" for keyword list.
     @classmethod
     def article_data_extraction(self, reference_list: list[str]) -> list[dict]:
         logger.debug("> Extracting article data with OpenAI")
-        GPT_INSTRUCTIONS = """
-This GPT specializes in parsing unstructured strings of academic references and extracting key components such as the first author's name (formatted as "last_name, first_name"), the title of the work, and the publication year.
-It presents this information in a structured JSON format.
-The JSON data must include the following fields: "title", "first_author", and "year".
-Return entries in list with key "references".
-Responses are concise, focused on accurately extracting and formatting the data, and handle common variations in citation styles.
-"""
         messages = [
-            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role":"system", "content": REFERENCE_PARSE_PROMPT},
             {"role": "user", "content": "\n".join(reference_list)},
         ]
         json_data = self.request_for_json(REFERECNCE_MODEL, messages)
@@ -158,15 +118,8 @@ Responses are concise, focused on accurately extracting and formatting the data,
     @classmethod
     def summarize(self, text: str) -> str:
         logger.debug("> Summarizing text with OpenAI")
-        GPT_INSTRUCTIONS = """
-This GPT is designed to create a single sentence summary of the text user provides.
-The summary must capture the core information and key concepts that would help match this text with related questions or documents.
-Focus on preserving the main topic, key entities, and central arguments while including specific terminology from the original text.
-Avoid including minor details, examples, or supporting evidence.
-The summary should be concise yet informative enough to determine the text's relevance to other materials.
-"""
         messages = [
-            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role":"system", "content": SUMMARIZE_PROMPT},
             {"role": "user", "content": text},
         ]
         summary = self.request_for_text(SUMMARIZE_MODEL, messages)
@@ -177,13 +130,8 @@ The summary should be concise yet informative enough to determine the text's rel
     @classmethod
     def analyze_error(self, error: str) -> dict:
         logger.debug("> Finding root cause of error with OpenAI")
-        GPT_INSTRUCTIONS = """
-This GPT is designed to Analyze the provided error logs, identify and extract the most relevant error that best explains the root cause of the failure.
-Return only this error, its location and its complete traceback in the following JSON format: 
-{"error_message": string, "location": string, "traceback": string}.
-"""
         messages = [
-            {"role":"system", "content": GPT_INSTRUCTIONS},
+            {"role":"system", "content": ERROR_ANALYSIS_PROMPT},
             {"role": "user", "content": error},
         ]
         json_data = self.request_for_json(ERROR_ANALYSIS_MODEL, messages)
