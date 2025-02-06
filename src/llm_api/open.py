@@ -79,17 +79,16 @@ class OpenAPI:
     ##
     # QnA functions
     @classmethod
-    def qna(self, query: str, example:str ) -> dict:
+    def qna(self, query: str, example:str=None ) -> dict:
         logger.debug("> Finding answer with OpenAI")
-        messages = [
-            {"role":"system", "content": QNA_PROMPT},
-            {"role": "user", "content": example},
-            {"role": "user", "content": query},
-        ]
+        messages = [{"role": "system", "content": QNA_PROMPT}]
+        if example:
+            messages.append({"role": "user", "content": example})
+        messages.append({"role": "user", "content": query})
         answer = self.request_for_json(QNA_MODEL, messages)
 
         logger.debug("> Found answer")
-        return answer    
+        return answer
     
     ##
     # Data generation functions

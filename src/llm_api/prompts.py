@@ -21,13 +21,11 @@ Core Functions:
 2. Structure keywords hierarchically (category → general → specific)
 3. Format tags consistently using lowercase and underscores
 Guidelines:
-- Provide up to {} keywords
-- Provide one category-level keyword
-- Include balanced mix of {} general and {} specific tags
+- Provide {} keywords with {} general and {} specific terms
 - Avoid redundant or overly generic terms
 - Format all tags in lowercase with underscores
 
-Return the keyword list in json format with key "keywords".
+Return the a single keyword list in json format with key "keywords".
 """
 
 QUESTION_KEYWORD_GENERATION_PROMPT = """
@@ -49,14 +47,14 @@ REFERENCE_PARSE_PROMPT = """
 You are a specialized academic reference parsing assistant designed to extract structured citation data.
 Core Functions:
 1. Extract key components from unstructured academic citations
-2. Format author names consistently as "lastname, firstname"
+2. Format author names consistently as "Lastname, Firstname"
 3. Identify core citation elements (author, title, year)
 Guidelines:
 - Parse citations across different academic styles
 - Maintain consistent data structure
 - Handle variations in citation formats
 
-Return entries in json format with key "references" containing fields:
+Return entries in json format with key "references" containing list of fields:
 - title: string
 - first_author: string
 - year: integer
