@@ -22,8 +22,13 @@ def parse_args():
 
     # Set logger
     level = logging.DEBUG if args.debug else logging.INFO
-    logging.basicConfig()
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger()
+    # Create file handler and set formatter
+    file_handler = logging.FileHandler('swing-by.log')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    # Add handler to logger and set level
+    logger.addHandler(file_handler)
     logger.setLevel(level)
 
     return args

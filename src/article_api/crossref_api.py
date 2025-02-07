@@ -52,7 +52,7 @@ class CrossrefQuery:
             doi (str): DOI of the article
             reference (str): Reference of the article
         """
-        logger.debug("Getting data from Crossref by title/author")
+        logger.debug("Getting data by title/author")
         title = TextUtils.clean(title)
 
         logger.debug(f"> Query: {title}")
@@ -60,11 +60,11 @@ class CrossrefQuery:
         if author:
             query["query.author"] = author
 
-        logger.debug("> Sending Crossref API request")
+        logger.debug("> Sending API request")
         try:
             result = next(iterate_publications_as_json(max_results=1,queries=query))
         except Exception as e:
-            logger.error(f"> Failed to query Crossref: {str(e)}")
+            logger.error(f"> Failed to query: {str(e)}")
             return None
         
         return self._process(result, title, get_references=get_references)
@@ -81,14 +81,14 @@ class CrossrefQuery:
             doi (str): DOI of the article
             reference (str): Reference of the article
         """
-        logger.debug("Getting data from Crossref by DOI")
+        logger.debug("Getting data by DOI")
         logger.debug(f"> Query: {doi}")
 
-        logger.debug("> Sending Crossref API request")
+        logger.debug("> Sending API request")
         try:
             result = get_publication_as_json(doi)
         except Exception as e:
-            logger.error(f"> Failed to query Crossref: {str(e)}")
+            logger.error(f"> Failed to query: {str(e)}")
             return None
         
         return self._process(result, get_references=get_references)

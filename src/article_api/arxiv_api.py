@@ -16,13 +16,13 @@ class ArxivQuery:
         search = arxiv.Search(query=query, max_results=1, sort_by=arxiv.SortCriterion.Relevance)
         
         try:    
-            logger.debug("> Sending arXiv API request")
+            logger.debug("> Sending API request")
             results = self.client.results(search)
 
-            logger.debug("> Received arXiv API response")
+            logger.debug("> Received API response")
             result = next(results)
         except Exception as e:
-            logger.error(f"> Failed to query arXiv: {e}")
+            logger.error(f"> Failed to query: {e}")
             return None
 
         return self._process(result)
@@ -65,7 +65,7 @@ class ArxivQuery:
             summary (str): Summary of the article
             doi (str): DOI of the article
         """
-        logger.debug("Getting data from arXiv by title/author")
+        logger.debug("Getting data by title/author")
         title = TextUtils.clean(title)
         query = f"ti:{title}"
         if author:

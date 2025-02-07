@@ -24,11 +24,11 @@ class AdsQuery:
         }
 
         try:
-            logger.debug("> Sending ADS API request")
+            logger.debug("> Sending API request")
             response = requests.get(API_ENDPOINT, headers=self.headers, params=params)
             response.raise_for_status()
 
-            logger.debug("> Received ADS API response")
+            logger.debug("> Received API response")
             if b"<!DOCTYPE html>" in response.content:
                 raise requests.exceptions.RequestException("ADS is currently under maintenance")
             data = response.json()
@@ -37,7 +37,7 @@ class AdsQuery:
                 return None
             result = docs[0]
         except Exception as e:
-            logger.error(f"> Failed to query ADS: {str(e)}")
+            logger.error(f"> Failed to query: {str(e)}")
             return None
         
         return self._process(result, get_references=get_references)
@@ -79,7 +79,7 @@ class AdsQuery:
             author (str): Author of the article
 
         """
-        logger.debug("Getting data from ADS by title/author")
+        logger.debug("Getting data by title/author")
         title = TextUtils.clean(title)
         query = f"title:'{title}'"
         if author:
@@ -95,7 +95,7 @@ class AdsQuery:
             doi (str): DOI of the article
 
         """
-        logger.debug("Getting data from ADS by DOI")
+        logger.debug("Getting data by DOI")
         query = f"doi:{doi}"
         return self._query(query, get_references=get_references)
     
@@ -108,7 +108,7 @@ class AdsQuery:
             bibcode (str): Bibcode of the article
 
         """
-        logger.debug("Getting data from ADS by bibcode")
+        logger.debug("Getting data by bibcode")
         query = f"bibcode:{bibcode}"
         return self._query(query, get_references=get_references)
     
@@ -121,7 +121,7 @@ class AdsQuery:
             arxiv_id (str): arXiv ID of the article
 
         """
-        logger.debug("Getting data from ADS by arXiv ID")
+        logger.debug("Getting data by arXiv ID")
         query = f"arXiv:{arxiv_id}"
         return self._query(query, get_references=get_references)
 

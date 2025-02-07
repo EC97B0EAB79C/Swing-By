@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -6,6 +7,8 @@ from src.utils.file import FileUtils
 from src.utils.md import MarkdownUtils
 
 from src.llm_api.open import OpenAPI
+
+logger = logging.getLogger(__name__)
 
 class Knowledge:
     ##
@@ -15,20 +18,28 @@ class Knowledge:
             file_name,
             db_entry:dict=None,
             ):
+        logger.debug(f"Initializing Knowledge object with {file_name}")
         self.file_name = file_name
         self._load_file()
         self.key = Path(file_name).stem
 
         if db_entry is not None:
+            logger.debug("> Loading database entry")
             self.metadata.update(db_entry)
             self.key = db_entry.get("key")
         else:
+            logger.debug("> Generating new entry")
             self._generate_entry()
         
     def _load_file(self):
+        logger.debug("> Loading file")
         note_lines = FileUtils.read_lines(self.file_name)
         self.metadata, self.body = MarkdownUtils.extract_yaml(note_lines)
         self.hash = FileUtils.calculate_hash(self.file_name)
+        self._extract_data()
+
+    def _extract_data(self):
+        pass
 
     def _generate_entry(self):
         self.create_embeddings()
@@ -38,6 +49,7 @@ class Knowledge:
     ##
     # Create keywords
     def create_keywords(self, example=None, payload=None):
+        logger.debug("> Creating keywords")
         query = self._create_payload(example, payload)
         self.metadata["keywords"] = OpenAPI.document_keyword_extraction(query)
         #TODO: Error handling?
@@ -72,6 +84,7 @@ class Knowledge:
     ##
     # Create embeddings
     def create_embeddings(self, additional_data=[]):
+        logger.debug("> Creating embeddings")
         text = [
             self.metadata.get("title", self.key),
             self.body
