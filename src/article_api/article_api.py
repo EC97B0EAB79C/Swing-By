@@ -250,13 +250,3 @@ class ArticleAPI:
     @staticmethod
     def get_basic_data_with_unstructured(unstructured_data):
         return OpenAPI.reference_parse(unstructured_data)
-    
-if __name__ == "__main__":
-    data = [
-        ("Precipitation downscaling with spatiotemporal video diffusion", "Srivastava, Prakhar"),
-        ("A theoretical prediction of friction drag reduction in turbulent flow by superhydrophobic surfaces",
-         "Fukagata, Koji")
-    ]
-    for title, author in data:
-        print(ArticleAPI.get_data(title, author))
-        print()

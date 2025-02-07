@@ -124,8 +124,3 @@ class AdsQuery:
         logger.debug("Getting data by arXiv ID")
         query = f"arXiv:{arxiv_id}"
         return self._query(query, get_references=get_references)
-
-if __name__ == "__main__":
-    print(AdsQuery.with_title(
-        "Precipitation downscaling with spatiotemporal video diffusion", 
-        "Srivastava, Prakhar"))

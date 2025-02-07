@@ -85,10 +85,3 @@ class ArxivQuery:
         logger.warning("Querying arXiv with DOI is not supported")
 
         return None
-
-if __name__ == "__main__":
-    arxiv_id, summary, doi = ArxivQuery.with_title("Precipitation downscaling with spatiotemporal video diffusion", "Srivastava, Prakhar")
-    print(arxiv_id, summary, doi)
-
-    # arxiv_id, summary, doi = ArxivQuery.with_doi("10.2151/sola.2019-032")
-    # print(arxiv_id, summary, doi)
