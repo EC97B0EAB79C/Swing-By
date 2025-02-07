@@ -34,3 +34,7 @@ class Config:
     @classmethod
     def type(cls):
         return cls.load_config().get("type")
+            
+    @classmethod
+    def llm_model(cls, model_name):
+        return cls.load_config().get("llm_models").get(model_name)

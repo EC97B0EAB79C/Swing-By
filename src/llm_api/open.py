@@ -8,19 +8,12 @@ import numpy as np
 from openai import OpenAI
 
 from src.llm_api.prompts import *
+from src.utils.config import Config
 
 # Global variables
 TOKEN = os.environ["GITHUB_TOKEN"]
 API_ENDPOINT = "https://models.inference.ai.azure.com"
 logger = logging.getLogger(__name__)
-
-# OpenAI models
-EMBEDDING_MODEL = "text-embedding-3-small"
-KEYWORD_MODEL = "gpt-4o-mini"
-REFERECNCE_MODEL = "gpt-4o-mini"
-SUMMARIZE_MODEL = "gpt-4o-mini"
-ERROR_ANALYSIS_MODEL = "gpt-4o-mini"
-QNA_MODEL = "gpt-4o-mini"
 
 class OpenAPI:
     client = OpenAI(base_url=API_ENDPOINT, api_key=TOKEN)
@@ -64,7 +57,7 @@ class OpenAPI:
         logger.debug("> Sending OpenAI embedding API request")
         embedding_response = self.client.embeddings.create(
             input = text,
-            model = EMBEDDING_MODEL,
+            model = Config.llm_model("embedding"),
         )
 
         logger.debug("> Recieved OpenAI embedding API responce")
@@ -85,7 +78,10 @@ class OpenAPI:
         if example:
             messages.append({"role": "user", "content": example})
         messages.append({"role": "user", "content": query})
-        answer = self.request_for_json(QNA_MODEL, messages)
+        answer = self.request_for_json(
+            Config.llm_model("qna"), 
+            messages
+            )
 
         logger.debug("> Found answer")
         return answer
@@ -99,7 +95,10 @@ class OpenAPI:
             {"role":"system", "content": QUESTION_KEYWORD_GENERATION_PROMPT},
             {"role": "user", "content": query},
         ]
-        json_data = self.request_for_json(KEYWORD_MODEL, messages)
+        json_data = self.request_for_json(
+            Config.llm_model("keyword_generation"), 
+            messages
+            )
         keywords = json_data["keywords"]
 
         logger.debug("> Generated keywords")
@@ -112,7 +111,10 @@ class OpenAPI:
             {"role":"system", "content": DOCUMENT_KEYWORD_GENERATION_PROMPT.format(n, n*ratio, n*(1-ratio))},
             {"role": "user", "content": text},
         ]
-        json_data = self.request_for_json(KEYWORD_MODEL, messages)
+        json_data = self.request_for_json(
+            Config.llm_model("keyword_generation"),
+            messages
+            )
         keywords = json_data["keywords"]
 
         logger.debug("> Created keywords")
@@ -127,7 +129,10 @@ class OpenAPI:
             {"role":"system", "content": REFERENCE_PARSE_PROMPT},
             {"role": "user", "content": "\n".join(reference_list)},
         ]
-        json_data = self.request_for_json(REFERECNCE_MODEL, messages)
+        json_data = self.request_for_json(
+            Config.llm_model("reference_parse"), 
+            messages
+            )
         structured_references = json_data["references"]
 
         logger.debug("> Extracted article data")
@@ -140,7 +145,10 @@ class OpenAPI:
             {"role":"system", "content": SUMMARIZE_PROMPT},
             {"role": "user", "content": text},
         ]
-        summary = self.request_for_text(SUMMARIZE_MODEL, messages)
+        summary = self.request_for_text(
+            Config.llm_model("summarize"),
+            messages
+            )
 
         logger.debug("> Summarized text")
         return summary
@@ -152,7 +160,10 @@ class OpenAPI:
             {"role":"system", "content": ERROR_ANALYSIS_PROMPT},
             {"role": "user", "content": error},
         ]
-        json_data = self.request_for_json(ERROR_ANALYSIS_MODEL, messages)
+        json_data = self.request_for_json(
+            Config.llm_model("error_analysis"),
+            messages
+            )
 
         logger.debug("> Found root cause of error")
         return json_data

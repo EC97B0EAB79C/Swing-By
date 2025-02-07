@@ -3,7 +3,7 @@ from src.knowledge.knowledge import Knowledge
 
 from src.utils.md import MarkdownUtils
 
-from src.llm_api.open import OpenAI
+from src.llm_api.open import OpenAPI
 
 class DebugNote(Knowledge):
     ##
@@ -22,7 +22,7 @@ class DebugNote(Knowledge):
         self.debug_body, _, _ = MarkdownUtils.extract_section(self.body, "Debug Process")
         self.solution_body, _, _ = MarkdownUtils.extract_section(self.body, "Solution")
         
-        summary = OpenAI.summarize(self.issue_body)
+        summary = OpenAPI.summarize(self.issue_body)
         self.error_message = summary["error_message"]
         self.error_location = summary["location"]
         self.error_traceback = summary["traceback"]

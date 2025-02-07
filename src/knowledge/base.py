@@ -12,7 +12,7 @@ from src.utils.config import Config
 from src.utils.file import FileUtils
 
 from src.knowledge.knowledge import Knowledge
-from src.knowledge.article import Article
+from src.knowledge.factory import KnowledgeFactory
 
 from src.llm_api.open import OpenAPI
 
@@ -137,7 +137,9 @@ class KnowledgeBase:
 
 
 if __name__ == "__main__":
-    kb = KnowledgeBase(Knowledge)
+    kb = KnowledgeBase(
+        KnowledgeFactory.create(Config.type())
+    )
     kb.process_updated_files()
     kb.save_db()
     # result = (kb.qna("What did Guibas, John propoesd at 2021?"))
