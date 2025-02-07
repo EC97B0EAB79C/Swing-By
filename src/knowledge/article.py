@@ -10,18 +10,32 @@ from src.utils.text import TextUtils
 class Article(Knowledge):
     ##
     # Initialize the Article class
-    def __init__(self,
-                 file_name,
-                 ):
+    def __init__(
+            self,
+            file_name,
+            db_entry = None
+            ):
         super().__init__(
             file_name,
+            db_entry
         )
-        self.key = ""#TODO Create key
-        self._extract_data()
 
-    def _extract_data(self):
+    def _generate_entry(self):
+        super()._generate_entry()
+        self._extract_bibtex_data()
+        self._query_article_data()
+
+    def _extract_bibtex_data(self):
         bibtex_metadata = MarkdownUtils.extract_bibtex(self.body)
         self.metadata.update(bibtex_metadata)
+
+    def _query_article_data(self):
+        data = ArticleAPI.get_data(
+            self.metadata.get("title"),
+            self.metadata.get("author"),
+        )
+        self.metadata.update(data)
+        self.key = self.metadata.get("key")
 
     ##
     # Create keywords

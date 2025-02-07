@@ -50,6 +50,11 @@ class ArticleAPI:
 
         data = self._get_data(data)
         data = self._get_missing_data(data)
+        data["key"] = TextUtils.generate_sbkey(
+            data["title"],
+            data["first_author"],
+            data["year"]
+        )
 
         #TODO Convert references to SBKeys
         return data

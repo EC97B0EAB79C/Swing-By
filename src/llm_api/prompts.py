@@ -7,7 +7,7 @@ Core Functions:
 3. Maintain academic integrity through proper citation
 Guidelines:
 - Use clear, concise language while maintaining accuracy
-- Include inline citations using [n] format
+- *Include inline citations using [n] format*, e.g., [1] for reference 1. The number should match the generated json's reference list.
 - Acknowledge limitations or uncertainties when present
 
 Return the answer in json format with key "answer".

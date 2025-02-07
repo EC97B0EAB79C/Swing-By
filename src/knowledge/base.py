@@ -100,7 +100,10 @@ class KnowledgeBase:
         if self.notes.get(key):
             return self.notes[key]
         else:
-            note = self.T(file_path)
+            note = self.T(
+                file_path,
+                dict(self.db.loc[self.db['key'] == key].iloc[0]) if key in self.db['key'].values else None
+                )
             self.notes[key] = note
             return note
 
@@ -114,12 +117,11 @@ class KnowledgeBase:
         for file_path in self._new_files():
             logger.debug(f"Processing new file: {file_path}")
             note = self.T(file_path)
-            note.create_embeddings()
-            note.create_keywords()
 
             entry = note.db_entry()
             self.append_db_entry(entry)
             self.notes[note.key] = note
+            kb.save_db()
 
     def process_updated_files(self):
         for i, row in self.db.iterrows():
@@ -128,12 +130,11 @@ class KnowledgeBase:
                 continue
             logger.debug(f"Processing updated file: {file_path}")
             note = self.T(file_path)
-            note.create_embeddings()
-            note.create_keywords()
 
             entry = note.db_entry()
             self.db.loc[i] = entry
             self.notes[note.key] = note
+            kb.save_db()
 
 
 if __name__ == "__main__":
@@ -141,7 +142,6 @@ if __name__ == "__main__":
         KnowledgeFactory.create(Config.type())
     )
     kb.process_updated_files()
-    kb.save_db()
     # result = (kb.qna("What did Guibas, John propoesd at 2021?"))
     result = (kb.qna("What are some developments in deep learning?"))
     print(result["answer"])

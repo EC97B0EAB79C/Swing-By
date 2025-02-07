@@ -10,17 +10,30 @@ from src.llm_api.open import OpenAPI
 class Knowledge:
     ##
     # Initialize the Knowledge class
-    def __init__(self, 
-                 file_name,
-                 ):
+    def __init__(
+            self, 
+            file_name,
+            db_entry:dict=None,
+            ):
         self.file_name = file_name
         self._load_file()
         self.key = Path(file_name).stem
+
+        if db_entry is not None:
+            self.metadata.update(db_entry)
+            self.key = db_entry.get("key")
+        else:
+            self._generate_entry()
         
     def _load_file(self):
         note_lines = FileUtils.read_lines(self.file_name)
         self.metadata, self.body = MarkdownUtils.extract_yaml(note_lines)
         self.hash = FileUtils.calculate_hash(self.file_name)
+
+    def _generate_entry(self):
+        self.create_embeddings()
+        self.create_keywords()
+        self.metadata["summary"] = OpenAPI.summarize(self.body)
 
     ##
     # Create keywords

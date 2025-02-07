@@ -8,11 +8,14 @@ from src.llm_api.open import OpenAPI
 class DebugNote(Knowledge):
     ##
     # Initialize the Debug class
-    def __init__(self,
-                 file_name,
-                 ):
+    def __init__(
+            self,
+            file_name,
+            db_entry = None
+            ):
         super().__init__(
             file_name,
+            db_entry
         )
         self.key = self.metadata.get("ID")
         self._extract_data()
@@ -22,11 +25,13 @@ class DebugNote(Knowledge):
         self.debug_body, _, _ = MarkdownUtils.extract_section(self.body, "Debug Process")
         self.solution_body, _, _ = MarkdownUtils.extract_section(self.body, "Solution")
         
-        summary = OpenAPI.summarize(self.issue_body)
-        self.error_message = summary["error_message"]
-        self.error_location = summary["location"]
-        self.error_traceback = summary["traceback"]
-    
+    def _generate_entry(self):
+        super()._generate_entry()
+        error_detail = OpenAPI.analyze_error(self.issue_body)
+        self.error_message = error_detail["error_message"]
+        self.error_location = error_detail["location"]
+        self.error_traceback = error_detail["traceback"]
+        
     ##
     # Create keywords
     def create_keywords(self, example=None):
