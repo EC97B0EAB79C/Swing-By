@@ -62,7 +62,7 @@ class Article(Knowledge):
     ##
     # Create entries and metadata
     def embedding_dict(self):
-        return super().embedding_dict() + {
+        return super().embedding_dict() | {
             "embedding_summary": self.metadata.get("embedding_summary"),
         }
 

@@ -25,7 +25,7 @@ class Config:
     
     @classmethod
     def knowledgebase(cls):
-        return cls.load_config().get("knowledgebase")
+        return os.path.expanduser(cls.load_config().get("knowledgebase"))
     
     @classmethod
     def llm_provider(cls):

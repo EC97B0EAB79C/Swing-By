@@ -59,18 +59,20 @@ class MarkdownUtils:
         section_end = len(body)
         
         for i, line in enumerate(body):
-            if f"# {section_name}" in line.strip().lower():
+            if line.strip() == "":
+                continue
+            if f"# {section_name}".lower() in line.strip().lower():
                 in_section = True
                 section_level = line.split()[0].count('#')
                 section_start = i
                 continue
-            if in_section and line.strip()[0].count('#') == section_level:
+            if in_section and line.strip().split()[0].count('#') == section_level:
                 section_end = i
                 break
 
         if not in_section:
             return None, None, None
-        
+
         section_text = '\n'.join(body[section_start+1:section_end])
 
         return section_text, section_start, section_end
