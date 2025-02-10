@@ -262,9 +262,13 @@ class ArticleAPI:
             data = [data]
 
         structured, unstructured = self._filter_unstructured(data)
-        structured.append(OpenAPI.reference_parse(unstructured))
+        if len(unstructured) > 0:
+            unstructured = OpenAPI.reference_parse(unstructured)
 
-        result = self._list_to_sbkey(structured)
+        result = self._list_to_sbkey(
+            structured + unstructured
+            )
+        
 
         return result
     
