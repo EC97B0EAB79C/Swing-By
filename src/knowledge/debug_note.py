@@ -27,9 +27,9 @@ class DebugNote(Knowledge):
         
     def _generate_entry(self):
         error_detail = OpenAPI.analyze_error(self.issue_body)
-        self.error_message = error_detail["error_message"]
-        self.error_location = error_detail["location"]
-        self.error_traceback = error_detail["traceback"]
+        self.error_message = "\n".join(error_detail["error_message"])
+        self.error_location = "\n".join(error_detail["location"])
+        self.error_traceback = "\n".join(error_detail["traceback"])
         super()._generate_entry()
         
     ##

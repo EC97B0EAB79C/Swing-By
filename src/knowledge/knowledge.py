@@ -90,7 +90,13 @@ class Knowledge:
             self.body
         ] + additional_data
 
-        embeddings = OpenAPI.embedding(text)
+        try:
+            embeddings = OpenAPI.embedding(text)
+        except Exception as e:
+            logger.error(f"Error creating embeddings: {e}")
+            for t in text:
+                logger.error(t)
+            exit(1)
 
         self.metadata["embedding_title"] = embeddings[0]
         self.metadata["embedding_body"] = embeddings[1]
