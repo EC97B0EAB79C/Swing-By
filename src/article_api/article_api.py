@@ -31,6 +31,7 @@ class ArticleAPI:
         """
         data = {
             "title": title,
+            "author": author,
             "first_author": TextUtils.get_first_string(author),
             "year": None,
 
@@ -56,7 +57,10 @@ class ArticleAPI:
             data["year"]
         )
 
-        #TODO Convert references to SBKeys
+        data["ref"] = self.generate_sbkey(
+            (data["crossref_reference"] or []) + (data["ads_reference"] or [])
+            )
+
         return data
 
     @classmethod
@@ -181,15 +185,15 @@ class ArticleAPI:
             "year": None,
         }
 
-        self._get_basic_doi(data, doi)
+        data = self._get_basic_doi(data, doi)
         if self._verify_basic_data(data):
             return data
         
-        self._get_basic_bibcode(data, bibcode)
+        data = self._get_basic_bibcode(data, bibcode)
         if self._verify_basic_data(data):
             return data
 
-        self._get_basic_title(data, title, first_author)
+        data = self._get_basic_title(data, title, first_author)
         if self._verify_basic_data(data):
             return data
 
@@ -250,3 +254,64 @@ class ArticleAPI:
     @staticmethod
     def get_basic_data_with_unstructured(unstructured_data):
         return OpenAPI.reference_parse(unstructured_data)
+
+    @classmethod
+    def generate_sbkey(self, data):
+        result = []
+        if not isinstance(data, list):
+            data = [data]
+
+        structured, unstructured = self._filter_unstructured(data)
+        structured.append(OpenAPI.reference_parse(unstructured))
+
+        result = self._list_to_sbkey(structured)
+
+        return result
+    
+    @classmethod
+    def _filter_unstructured(self, data):
+        structured = []
+        unstructured = []
+        for data_entry in data:
+            if "unstructured" in data_entry:
+                unstructured.append(data_entry["unstructured"])
+                continue
+            structured.append(data_entry)
+
+        return structured, unstructured
+    
+    @classmethod
+    def _list_to_sbkey(self, data):
+        result = []
+        for data_entry in data:
+            if isinstance(data_entry, dict):
+                sbkey = self._dict_to_sbkey(data_entry)
+                if sbkey:
+                    result.append(sbkey)
+
+        return result
+                
+    @classmethod
+    def _dict_to_sbkey(self, data):
+        if "unstructured" in data:
+            data = self.get_basic_data_with_unstructured(data["unstructured"])
+        if "article-title" in data:
+            data["title"] = data.pop("article-title") 
+        if "author" in data:
+            data["first_author"] = TextUtils.get_author(
+                TextUtils.get_first_string(data["author"]))
+        if not all(key in data for key in ("title", "first_author", "year")):
+            data = self.get_basic_data(
+                data.get("title"), 
+                data.get("first_author"), 
+                data.get("doi"), 
+                data.get("bibcode"))
+
+        if not data or "title" not in data:
+            return None
+
+        return TextUtils.generate_sbkey(
+            data["title"],
+            data["first_author"],
+            data["year"]
+        )

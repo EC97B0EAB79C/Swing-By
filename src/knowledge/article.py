@@ -80,9 +80,7 @@ class Article(Knowledge):
         result["year"] = self.metadata.get("year")
 
         # References
-        result["ref"] = list(set().union(
-            self.metadata.get("crossref_reference", []), 
-            self.metadata.get("ads_reference", [])))
+        result["ref"] = self.metadata.get("ref")
         result["cited_by"] = []
 
         return result
