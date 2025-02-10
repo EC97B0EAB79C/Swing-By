@@ -19,11 +19,13 @@ def main():
 
     while True:
         query = input("Q: ")
+        if query == "":
+            continue
         if query == "exit":
             break
         result = kb.qna(query)
-        print(result["answer"])
-        for idx, ref in enumerate(result["references"]):
+        print("SB:\n", result["answer"])
+        for idx, ref in enumerate(result.get("references", [])):
             print(f"- [{idx+1}] {ref}")
 
 if __name__ == "__main__":

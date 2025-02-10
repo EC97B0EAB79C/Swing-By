@@ -21,9 +21,9 @@ class Article(Knowledge):
         )
 
     def _generate_entry(self):
-        super()._generate_entry()
         self._extract_bibtex_data()
         self._query_article_data()
+        super()._generate_entry()
 
     def _extract_bibtex_data(self):
         bibtex_metadata = MarkdownUtils.extract_bibtex(self.body)
@@ -52,11 +52,12 @@ class Article(Knowledge):
     ##
     # Create embeddings
     def create_embeddings(self):
-        text = [
-            self.summary(),
-        ]
-        
-        result = super().create_embeddings(text) 
+        summary = self.summary()
+        if summary is None:
+            super().create_embeddings()
+            return
+            
+        result = super().create_embeddings([summary]) 
         self.metadata["embedding_summary"] = result[0]  
 
     ##
@@ -66,8 +67,8 @@ class Article(Knowledge):
             "embedding_summary": self.metadata.get("embedding_summary"),
         }
 
-    def db_entry(self, embeddings):
-        result =  super().db_entry(embeddings)
+    def db_entry(self):
+        result =  super().db_entry()
         # Keys
         result["arxiv_id"] = self.metadata.get("arxiv_id")
         result["bibcode"] = self.metadata.get("bibcode")
