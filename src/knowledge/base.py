@@ -68,7 +68,7 @@ class KnowledgeBase:
 
     def vector_search(self, key, vector, n=5):
         search_df = self.db.copy()
-        search_df["distance"] = search_df[key].apply(lambda x: np.linalg.norm(x - vector))
+        search_df["distance"] = search_df[key].apply(lambda x: float('inf') if x is None else np.linalg.norm(x - vector))
         search_df = search_df.sort_values(by='distance', ascending=False)
         return search_df[:n]
 

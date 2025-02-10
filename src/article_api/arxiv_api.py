@@ -11,7 +11,7 @@ class ArxivQuery:
     client = arxiv.Client()
 
     @classmethod
-    def _query(self, query):
+    def _query(self, query, title=None):
         logger.debug(f"> Query: {query}")        
         search = arxiv.Search(query=query, max_results=1, sort_by=arxiv.SortCriterion.Relevance)
         
@@ -25,7 +25,7 @@ class ArxivQuery:
             logger.error(f"> Failed to query: {e}")
             return None
 
-        return self._process(result)
+        return self._process(result, title)
 
     @staticmethod
     def _process(data,title=None):
@@ -43,10 +43,10 @@ class ArxivQuery:
         if title is None:
             return result
 
-        if TextUtils.same(title, result.title):
+        if TextUtils.same(title, result["title"]):
             return result
 
-        if WarningProcessor.process_article_warning(False, "arXiv", title, result.title):
+        if WarningProcessor.process_article_warning(False, "arXiv", title, result["title"]):
             return result
 
         return None        
@@ -70,7 +70,7 @@ class ArxivQuery:
         query = f"ti:{title}"
         if author:
             query += f" AND au:{author}"
-        return self._query(query)
+        return self._query(query, title)
 
     
     @classmethod
