@@ -103,20 +103,23 @@ class KnowledgeBase:
 
 
     def _get_relevant(self, query):
-        print(f"SB: Getting relevant notes")
+        print(f"SB: > Getting relevant notes")
         if self.db.empty:
             return self.db
 
         related_rows = []
         # Related by vector search
+        print("SB: > Getting related by vector")
         related_rows.append(self._get_relevant_by_vector(query))
         # Related by keywords        
+        print("SB: > Getting related by keywords")
         related_rows.append(self._get_relevant_by_keywords(query))
 
         related_df = pandas.concat(related_rows).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
         return related_df
 
     def qna(self, query):
+        print("SB: Generating answer")
         related = self._get_relevant(query)
 
         example = "Related\n"
@@ -148,9 +151,9 @@ class KnowledgeBase:
         return [os.path.join(self.note_directory, f) for f in new]
 
     def _process_new_files(self):
-        print(f"SB: Checking for new files")
+        print(f"SB: > Checking for new files")
         for file_path in self._new_files():
-            print(f"SB: Processing new files: {file_path}")
+            print(f"SB: > Processing new files: {file_path}")
             logger.debug(f"Processing new file: {file_path}")
             note = self.T(file_path)
 
@@ -160,12 +163,12 @@ class KnowledgeBase:
             self.save_db()
 
     def process_updated_files(self):
-        print(f"SB: Checking for updated files")
+        print(f"SB: > Checking for updated files")
         for i, row in self.db.iterrows():
             file_path = os.path.join(self.note_directory, row["file_name"])
             if FileUtils.calculate_hash(file_path) == row["hash"]:
                 continue
-            print(f"SB: Processing updated files: {file_path}")
+            print(f"SB: > Processing updated files: {file_path}")
             logger.debug(f"Processing updated file: {file_path}")
             note = self.T(file_path)
 

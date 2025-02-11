@@ -26,11 +26,12 @@ class TestKnowledge:
     def test_knowledge_db_entry(self, file_name):
         knowledge = Knowledge(file_name)
         knowledge.metadata["keywords"] = ["test_tag"]
-        embeddings = {"emb_test": "value" ,"emb_test2": "value2"}
-        result = knowledge.db_entry(embeddings)
+        embeddings = {"embedding_title": "value" ,"embedding_body": "value2"}
+        knowledge.metadata["embedding_title"] = embeddings["embedding_title"]
+        knowledge.metadata["embedding_body"] = embeddings["embedding_body"]
+        result = knowledge.db_entry()
         assert result is not None
-        #TODO adding key
-        # assert result["key"] is not None
+        assert result["key"] is not None
         assert result["keywords"] is not None
         assert result["file_name"] == os.path.basename(file_name)
         for k, v in embeddings.items():

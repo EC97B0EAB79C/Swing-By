@@ -43,7 +43,7 @@ class TextUtils:
         
         if isinstance(value, dict):
             if 'family' in value:
-                return value['family'] + ', ' + value['given']
+                return value['family'] + ', ' + value.get('given', '')
             else:
                 return value['name']
         
@@ -78,3 +78,15 @@ class TextUtils:
         trimmed = text[start:end].strip()
         retained = text[:start] + text[end:]
         return trimmed, retained
+
+
+if __name__ == "__main__":
+    args = {
+        "title": 
+            "",
+        "author": 
+            "",
+        "year": 0000
+    }
+
+    print(TextUtils.generate_sbkey(**args))

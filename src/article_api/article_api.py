@@ -267,7 +267,7 @@ class ArticleAPI:
     def generate_sbkey(cls, data):
         result = []
         if not isinstance(data, list):
-            data = [data]
+            return cls._dict_to_sbkey(data)
 
         structured, unstructured = cls._filter_unstructured(data)
         if len(unstructured) > 0:
@@ -285,6 +285,8 @@ class ArticleAPI:
         structured = []
         unstructured = []
         for data_entry in data:
+            if not data_entry:
+                continue
             if "unstructured" in data_entry:
                 unstructured.append(data_entry["unstructured"])
                 continue
