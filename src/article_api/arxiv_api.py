@@ -11,13 +11,13 @@ class ArxivQuery:
     client = arxiv.Client()
 
     @classmethod
-    def _query(self, query, title=None):
+    def _query(cls, query, title=None):
         logger.debug(f"> Query: {query}")        
         search = arxiv.Search(query=query, max_results=1, sort_by=arxiv.SortCriterion.Relevance)
         
         try:    
             logger.debug("> Sending API request")
-            results = self.client.results(search)
+            results = cls.client.results(search)
 
             logger.debug("> Received API response")
             result = next(results)
@@ -25,7 +25,8 @@ class ArxivQuery:
             logger.error(f"> Failed to query: {e}")
             return None
 
-        return self._process(result, title)
+        return cls._process(result, title)
+
 
     @staticmethod
     def _process(data,title=None):
@@ -40,6 +41,8 @@ class ArxivQuery:
             "summary": data.summary
         }
 
+        logger.debug(f"> Result: {result["title"]}")
+
         if title is None:
             return result
 
@@ -51,8 +54,9 @@ class ArxivQuery:
 
         return None        
 
+
     @classmethod
-    def with_title(self, title, author):
+    def with_title(cls, title, author):
         """
         Query arXiv API with title and author
 
@@ -70,18 +74,4 @@ class ArxivQuery:
         query = f"ti:{title}"
         if author:
             query += f" AND au:{author}"
-        return self._query(query, title)
-
-    
-    @classmethod
-    def with_doi(self, doi):
-        """
-        Query arXiv API with DOI
-
-        Args:
-            doi (str): DOI of the article
-
-        """
-        logger.warning("Querying arXiv with DOI is not supported")
-
-        return None
+        return cls._query(query, title)

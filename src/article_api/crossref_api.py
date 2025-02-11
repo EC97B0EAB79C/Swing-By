@@ -10,9 +10,8 @@ from src.utils.warn import WarningProcessor
 logger = logging.getLogger(__name__)
 
 class CrossrefQuery:
-    def _create_crossref_reference():
-        pass
 
+    @staticmethod
     def _process(data, title=None, get_references=False):
         if data is None:
             return None
@@ -27,6 +26,8 @@ class CrossrefQuery:
         if get_references:
             result["reference"] = data.get("reference")
 
+        logger.debug(f"> Result: {result["title"]}")
+
         if title is None:
             return result
         
@@ -40,7 +41,7 @@ class CrossrefQuery:
         
 
     @classmethod
-    def with_title(self, title, author, get_references=True):
+    def with_title(cls, title, author, get_references=True):
         """
         Query Crossref API with title and author
 
@@ -67,10 +68,11 @@ class CrossrefQuery:
             logger.error(f"> Failed to query: {str(e)}")
             return None
         
-        return self._process(result, title, get_references=get_references)
+        return cls._process(result, title, get_references=get_references)
     
+
     @classmethod
-    def with_doi(self, doi, get_references=True):
+    def with_doi(cls, doi, get_references=True):
         """
         Query Crossref API with DOI
 
@@ -91,8 +93,4 @@ class CrossrefQuery:
             logger.error(f"> Failed to query: {str(e)}")
             return None
         
-        return self._process(result, get_references=get_references)
-
-
-        
-        
+        return cls._process(result, get_references=get_references)

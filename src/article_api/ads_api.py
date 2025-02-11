@@ -16,7 +16,7 @@ class AdsQuery:
     }
 
     @classmethod
-    def _query(self, query, get_references=False):
+    def _query(cls, query, get_references=False):
         logger.debug(f"> Query: {query}")
         params = {
             "q": query,
@@ -25,7 +25,7 @@ class AdsQuery:
 
         try:
             logger.debug("> Sending API request")
-            response = requests.get(API_ENDPOINT, headers=self.headers, params=params)
+            response = requests.get(API_ENDPOINT, headers=cls.headers, params=params)
             response.raise_for_status()
 
             logger.debug("> Received API response")
@@ -34,16 +34,17 @@ class AdsQuery:
             data = response.json()
             docs = data.get('response', {}).get('docs', [])
             if not docs:
-                return None
+                raise requests.exceptions.RequestException("No results found")
             result = docs[0]
+
         except Exception as e:
             logger.error(f"> Failed to query: {str(e)}")
             return None
         
-        return self._process(result, get_references=get_references)
+        return cls._process(result, get_references=get_references)
     
     @classmethod
-    def _process(self, data, title=None, get_references=False):
+    def _process(cls, data, title=None, get_references=False):
         if data is None:
             return None
         result = {
@@ -56,7 +57,9 @@ class AdsQuery:
             "abstract": data.get("abstract")
         }
         if get_references:
-            result["reference"] = [self.with_bibcode(x, get_references=False) for x in data.get("reference", [])]
+            result["reference"] = [cls.with_bibcode(x, get_references=False) for x in data.get("reference", [])]
+
+        logger.debug(f"> Result: {result["title"]}")
 
         if title is None:
             return result
@@ -70,7 +73,7 @@ class AdsQuery:
         return None
 
     @classmethod
-    def with_title(self, title, author, get_references=True):
+    def with_title(cls, title, author, get_references=True):
         """
         Query ADS API with title and author
 
@@ -84,10 +87,10 @@ class AdsQuery:
         query = f"title:'{title}'"
         if author:
             query += f" author:'{author}'"
-        return self._query(query, get_references=get_references)
+        return cls._query(query, get_references=get_references)
         
     @classmethod
-    def with_doi(self, doi, get_references=True):
+    def with_doi(cls, doi, get_references=True):
         """
         Query ADS API with DOI
 
@@ -97,10 +100,10 @@ class AdsQuery:
         """
         logger.debug("Getting data by DOI")
         query = f"doi:{doi}"
-        return self._query(query, get_references=get_references)
+        return cls._query(query, get_references=get_references)
     
     @classmethod
-    def with_bibcode(self, bibcode, get_references=True):
+    def with_bibcode(cls, bibcode, get_references=True):
         """
         Query ADS API with bibcode
 
@@ -110,10 +113,10 @@ class AdsQuery:
         """
         logger.debug("Getting data by bibcode")
         query = f"bibcode:{bibcode}"
-        return self._query(query, get_references=get_references)
+        return cls._query(query, get_references=get_references)
     
     @classmethod
-    def with_arxiv(self, arxiv_id, get_references=True):
+    def with_arxiv(cls, arxiv_id, get_references=True):
         """
         Query ADS API with arXiv ID
 
@@ -123,4 +126,4 @@ class AdsQuery:
         """
         logger.debug("Getting data by arXiv ID")
         query = f"arXiv:{arxiv_id}"
-        return self._query(query, get_references=get_references)
+        return cls._query(query, get_references=get_references)
