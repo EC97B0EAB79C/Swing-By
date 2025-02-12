@@ -83,13 +83,20 @@ class TestArticle:
 
     def test_article_db_entry(self, file_name, title, first_author, year):
         article = Article(file_name)
-        embeddings = {"emb_test": "value" ,"emb_test2": "value2"}
         article.metadata["keywords"] = ["test_tag"]
-        result = article.db_entry(embeddings)
+        embeddings = {
+            "embedding_title": "value" ,
+            "embedding_body": "value2",
+            "embedding_summary": "value3"
+
+            }
+        article.metadata["embedding_title"] = embeddings["embedding_title"]
+        article.metadata["embedding_body"] = embeddings["embedding_body"]
+        article.metadata["embedding_summary"] = embeddings["embedding_summary"]
+        result = article.db_entry()
         assert result is not None
         # Inherited from Knowledge
-        #TODO adding key
-        # assert result["key"] is not None
+        assert result["key"] is not None
         assert result["keywords"] is not None
         assert result["file_name"] == os.path.basename(file_name)
         for k, v in embeddings.items():

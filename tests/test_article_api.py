@@ -177,17 +177,17 @@ class TestGetData:
           'ads_bibcode': '2023arXiv231206071S',
           'ads_doi': '10.48550/arXiv.2312.06071'},
           ["arxiv_summary", "ads_abstract", "ads_reference"]),
-         ("A theoretical prediction of friction drag reduction in turbulent flow by superhydrophobic surfaces",
-         "Fukagata, Koji",
-         {'title': 'A theoretical prediction of friction drag reduction in turbulent flow by superhydrophobic surfaces',
-          'first_author': 'Fukagata, Koji',
-          'year': 2006,
+         ("Generalization techniques of neural networks for fluid flow estimation",
+         "Morimoto, Masaki",
+         {'title': 'Generalization techniques of neural networks for fluid flow estimation',
+          'first_author': 'Morimoto, Masaki',
+          'year': 2021,
           'arxiv_id': '2011.11911v2',
           'arxiv_doi': '10.1007/s00521-021-06633-z',
-          'crossref_doi': '10.1063/1.2205307',
-          'ads_bibcode': '2006PhFl...18e1703F',
-          'ads_doi': '10.1063/1.2205307'},
-         ["arxiv_summary", "crossref_abstract", "crossref_abstract", "ads_abstract", "ads_reference"])
+          'crossref_doi': '10.1007/s00521-021-06633-z',
+          'ads_bibcode': '2020arXiv201111911M',
+          'ads_doi': '10.48550/arXiv.2011.11911'},
+         ["arxiv_summary", "crossref_reference", "ads_abstract", "ads_reference", "ref"])
     ])
     def test_get_data(self, title, author, data, notnull):
         result = ArticleAPI.get_data(title, author)
