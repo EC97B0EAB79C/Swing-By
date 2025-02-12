@@ -101,7 +101,7 @@ class KnowledgeBase:
         keyword_matches = keyword_matches.drop('match_count', axis=1)
         return keyword_matches
 
-
+    # TODO: Improve this function
     def _get_relevant(self, query):
         print(f"SB: > Getting relevant notes")
         if self.db.empty:
@@ -111,9 +111,9 @@ class KnowledgeBase:
         # Related by vector search
         print("SB: > Getting related by vector")
         related_rows.append(self._get_relevant_by_vector(query))
-        # Related by keywords        
-        print("SB: > Getting related by keywords")
-        related_rows.append(self._get_relevant_by_keywords(query))
+        # # Related by keywords        
+        # print("SB: > Getting related by keywords")
+        # related_rows.append(self._get_relevant_by_keywords(query))
 
         related_df = pandas.concat(related_rows).drop_duplicates(subset='key', keep='last').reset_index(drop=True)
         return related_df
@@ -122,10 +122,15 @@ class KnowledgeBase:
         print("SB: Generating answer")
         related = self._get_relevant(query)
 
+        token_count = 6000
         example = "Related\n"
         for i, row in related.iterrows():
-            example += f" # {row['title'] if 'title' in row else row['key']}\n"
-            example += f"{self._load_note(row['key'], row['file_name']).body}\n"
+            current_row = f"# {row['title'] if 'title' in row else row['key']}\n{self._load_note(row['key'], row['file_name']).body}\n\n"
+            token_count -= len(current_row.split()) * 2 
+            if token_count < 0:
+                break
+            print(f"SB: > Adding related note: {row['key']}")
+            example += current_row
 
         answer = OpenAPI.qna(query, example)
         return answer
