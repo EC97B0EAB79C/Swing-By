@@ -84,9 +84,9 @@ class AdsQuery:
         """
         logger.debug("Getting data by title/author")
         title = TextUtils.clean(title)
-        query = f"title:'{title}'"
+        query = f"title:\"{title}\""
         if author:
-            query += f" author:'{author}'"
+            query += f" author:\"{author}\""
         return cls._query(query, get_references=get_references)
         
     @classmethod
