@@ -310,7 +310,11 @@ class ArticleAPI:
             data = cls.get_basic_data_with_unstructured(data["unstructured"])
 
         data["title"] = data.pop("article-title") if "article-title" in data else data.get("title")
-        
+        data["title"] = (
+            data.get("title") or data.get("article-title") or data.get("series-title")
+        )
+
+
         if "author" in data and "first_author" not in data:
             data["first_author"] = TextUtils.get_author(
                 TextUtils.get_first_string(data["author"])
