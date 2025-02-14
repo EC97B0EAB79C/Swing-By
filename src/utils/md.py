@@ -87,3 +87,12 @@ class MarkdownUtils:
         md_text += body
 
         return md_text
+    
+    def create_others_section(others:str, contents:dict = None):
+        text = "## Others\n"
+        text += others
+        for key, value in contents.items():
+            text += f"\n\n### {key}\n"
+            text += value
+
+        return text

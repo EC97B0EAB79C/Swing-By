@@ -24,6 +24,7 @@ class DebugNote(Knowledge):
         self.issue_body, _, _ = MarkdownUtils.extract_section(self.body, "Issue")
         self.debug_body, _, _ = MarkdownUtils.extract_section(self.body, "Debug Process")
         self.solution_body, _, _ = MarkdownUtils.extract_section(self.body, "Solution")
+        super()._extract_data()
         
     def _generate_entry(self):
         error_detail = OpenAPI.analyze_error(self.issue_body)

@@ -19,6 +19,11 @@ class Article(Knowledge):
             file_name,
             db_entry
         )
+        self.key = TextUtils.generate_sbkey(
+            self.metadata.get("title"),
+            self.metadata.get("author"),
+            self.metadata.get("date"),
+        )
 
     def _generate_entry(self):
         self._extract_bibtex_data()
