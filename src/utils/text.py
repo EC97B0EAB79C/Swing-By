@@ -57,7 +57,7 @@ class TextUtils:
     
     @classmethod
     def generate_sbkey(self, title, author, year):
-        author_last_name = self.get_last_name(author)
+        author_last_name = self.get_last_name(self.get_author(author))
         author_last_name = self.format_entry(author_last_name, 6)
 
         year = str(year)

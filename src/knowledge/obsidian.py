@@ -4,8 +4,7 @@ import re
 from src.knowledge.article import Article
 
 from src.utils.md import MarkdownUtils
-from src.utils.text import TextUtils
-from src.utils.md import MarkdownUtils
+from src.utils.file import FileUtils
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +20,7 @@ class ObsidianNote(Article):
             file_name,
             db_entry
         )
+        self.update_file()
 
     ##
     # Create embeddings
@@ -39,6 +39,7 @@ class ObsidianNote(Article):
         self._modify_section(known_list)
 
         md_text = MarkdownUtils.create_md_text(metadata, self.body)
+        FileUtils.write(self.file_name, md_text)
 
     def _modify_section(self, known_list=[]):
         body = self.body.strip("\n")
@@ -58,13 +59,15 @@ class ObsidianNote(Article):
         others_section, s, e = MarkdownUtils.extract_section(body, "Others")
         body = body[:s] + body[e:]
 
-        body += MarkdownUtils.create_others_section(others_section, sections)
+        body += MarkdownUtils.create_others_section(others_section or "", sections)
 
         self.body = body
 
     def _merge_references(self, reference_body, new_references):
-        reference_list = re.findall(r"\[\[.*?\]\]", reference_body)
-        references = self._create_wikilink_dict(new_references) | self._create_wikilink_dict(reference_list)
+        references = self._create_wikilink_dict(new_references)
+        if reference_body:
+            reference_list = re.findall(r"\[\[.*?\]\]", reference_body)
+            references | self._create_wikilink_dict(reference_list)
         references = dict(sorted(references.items()))
 
         return references
@@ -80,8 +83,8 @@ class ObsidianNote(Article):
     def _create_reference_section(self, references, know_list=[]):
         reference_section = ""
         undiscovered_section = "#### Undiscovered\n"
-
-        for key, value in references:
+        
+        for key, value in references.items():
             if key in know_list:
                 reference_section += f"- [[{value}]]\n"
             else:
