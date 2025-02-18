@@ -5,6 +5,7 @@ from src.knowledge.article import Article
 
 from src.utils.md import MarkdownUtils
 from src.utils.file import FileUtils
+from src.utils.text import TextUtils
 
 logger = logging.getLogger(__name__)
 
@@ -42,22 +43,22 @@ class ObsidianNote(Article):
         FileUtils.write(self.file_name, md_text)
 
     def _modify_section(self, known_list=[]):
-        body = self.body.strip("\n")
+        body = self.body
         sections = {
             "References": "",
             "Bibtex": ""
         }
 
         sections["Bibtex"], s, e = MarkdownUtils.extract_section(body, "Bibtex")
-        body = body[:s] + body[e:]
+        body = TextUtils.trim_lines(body, s, e)
 
         references_section, s, e = MarkdownUtils.extract_section(body, "References")
-        body = body[:s] + body[e:]
+        body = TextUtils.trim_lines(body, s, e)
         references = self._merge_references(references_section, self.metadata.get("ref", []))
         sections["References"] = self._create_reference_section(references, known_list)
 
         others_section, s, e = MarkdownUtils.extract_section(body, "Others")
-        body = body[:s] + body[e:]
+        body = TextUtils.trim_lines(body, s, e)
 
         body += MarkdownUtils.create_others_section(others_section or "", sections)
 

@@ -88,6 +88,7 @@ class MarkdownUtils:
 
         return md_text
     
+    @staticmethod
     def create_others_section(others:str, contents:dict = None):
         text = "## Others\n"
         text += others
