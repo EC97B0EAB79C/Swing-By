@@ -50,16 +50,17 @@ class ObsidianNote(Article):
         }
 
         sections["Bibtex"], s, e = MarkdownUtils.extract_section(body, "Bibtex")
-        body = TextUtils.trim_lines(body, s, e)
+        _, body = TextUtils.trim_lines(body, s, e)
 
         references_section, s, e = MarkdownUtils.extract_section(body, "References")
-        body = TextUtils.trim_lines(body, s, e)
+        _, body = TextUtils.trim_lines(body, s, e)
         references = self._merge_references(references_section, self.metadata.get("ref", []))
         sections["References"] = self._create_reference_section(references, known_list)
 
         others_section, s, e = MarkdownUtils.extract_section(body, "Others")
-        body = TextUtils.trim_lines(body, s, e)
+        _, body = TextUtils.trim_lines(body, s, e)
 
+        body = body.strip() + "\n\n"
         body += MarkdownUtils.create_others_section(others_section or "", sections)
 
         self.body = body
@@ -67,8 +68,8 @@ class ObsidianNote(Article):
     def _merge_references(self, reference_body, new_references):
         references = self._create_wikilink_dict(new_references)
         if reference_body:
-            reference_list = re.findall(r"\[\[.*?\]\]", reference_body)
-            references | self._create_wikilink_dict(reference_list)
+            reference_list = re.findall(r"\[\[(.*?)\]\]", reference_body)
+            references =  self._create_wikilink_dict(reference_list) | references
         references = dict(sorted(references.items()))
 
         return references
