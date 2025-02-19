@@ -90,10 +90,10 @@ class MarkdownUtils:
     
     @staticmethod
     def create_others_section(others:str, contents:dict = None):
-        text = "## Others\n"
-        text += others.strip()
+        text = "## Others"
+        text += ("\n" + others).strip()
         for key, value in contents.items():
-            text += f"\n\n### {key}\n"
-            text += value
+            text += f"\n### {key}\n"
+            text += value.strip() + "\n"
 
         return text

@@ -17,10 +17,11 @@ class ObsidianNote(Article):
             *args,
             local_files = []
             ):
+        self.local_files = local_files
         super().__init__(
             *args
         )
-        self.update_file(local_files)
+        self.update_file()
 
     ##
     # Create embeddings
@@ -34,31 +35,35 @@ class ObsidianNote(Article):
 
     ##
     # MD
-    def update_file(self, known_list=[]):
+    def update_file(self):
         metadata = self.md_metadata()
-        self._modify_section(known_list)
+        self._modify_section()
 
         md_text = MarkdownUtils.create_md_text(metadata, self.body)
         FileUtils.write(self.file_name, md_text)
         self.hash = FileUtils.calculate_hash(self.file_name)
 
-    def _modify_section(self, known_list=[]):
+    def _modify_section(self):
         body = self.body
         sections = {
             "References": "",
             "Bibtex": ""
         }
 
-        sections["Bibtex"], s, e = MarkdownUtils.extract_section(body, "Bibtex")
-        _, body = TextUtils.trim_lines(body, s, e)
+        bibtex_body, s, e = MarkdownUtils.extract_section(body, "Bibtex")
+        if s:
+            sections["Bibtex"] = bibtex_body
+            _, body = TextUtils.trim_lines(body, s, e)
 
         references_section, s, e = MarkdownUtils.extract_section(body, "References")
-        _, body = TextUtils.trim_lines(body, s, e)
+        if s:
+            _, body = TextUtils.trim_lines(body, s, e)
         references = self._merge_references(references_section, self.metadata.get("ref", []))
-        sections["References"] = self._create_reference_section(references, known_list)
+        sections["References"] = self._create_reference_section(references)
 
         others_section, s, e = MarkdownUtils.extract_section(body, "Others")
-        _, body = TextUtils.trim_lines(body, s, e)
+        if s:
+            _, body = TextUtils.trim_lines(body, s, e)
 
         body = body.strip() + "\n\n"
         body += MarkdownUtils.create_others_section(others_section or "", sections)
@@ -82,12 +87,12 @@ class ObsidianNote(Article):
         
         return result
     
-    def _create_reference_section(self, references, know_list=[]):
+    def _create_reference_section(self, references):
         reference_section = ""
         undiscovered_section = "#### Undiscovered\n"
         
         for key, value in references.items():
-            if key in know_list:
+            if key in self.local_files:
                 reference_section += f"- [[{value}]]\n"
             else:
                 undiscovered_section += f"- [[{value}]]\n"
