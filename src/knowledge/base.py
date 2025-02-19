@@ -32,6 +32,7 @@ class KnowledgeBase:
         self.db_path = os.path.join(Config.knowledgebase(), ".database", "db.h5")
         self.note_directory = Config.knowledgebase()
         self.notes = {}
+        self.local_files = [os.path.splitext(os.path.basename(f))[0]  for f in glob.glob(os.path.join(self.note_directory, "*.md"))]
         self._load_db()
 
         self._process_new_files()
@@ -157,11 +158,10 @@ class KnowledgeBase:
 
     def _process_new_files(self):
         print(f"SB: > Checking for new files")
-        local = [os.path.splitext(os.path.basename(f))[0]  for f in glob.glob(os.path.join(self.note_directory, "*.md"))]
         for file_path in self._new_files():
             print(f"SB: > Processing new files: {file_path}")
             logger.debug(f"Processing new file: {file_path}")
-            note = self.T(file_path, known_list = local)
+            note = self.T(file_path, local_files = self.local_files)
 
             entry = note.db_entry()
             self.append_db_entry(entry)
@@ -176,7 +176,7 @@ class KnowledgeBase:
                 continue
             print(f"SB: > Processing updated files: {file_path}")
             logger.debug(f"Processing updated file: {file_path}")
-            note = self.T(file_path)
+            note = self.T(file_path, local_files = self.local_files)
 
             entry = note.db_entry()
             self.db.loc[i] = entry

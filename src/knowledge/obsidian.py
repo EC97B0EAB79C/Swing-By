@@ -15,12 +15,12 @@ class ObsidianNote(Article):
     def __init__(
             self,
             *args,
-            known_list = []
+            local_files = []
             ):
         super().__init__(
             *args
         )
-        self.update_file(known_list)
+        self.update_file(local_files)
 
     ##
     # Create embeddings
@@ -40,6 +40,7 @@ class ObsidianNote(Article):
 
         md_text = MarkdownUtils.create_md_text(metadata, self.body)
         FileUtils.write(self.file_name, md_text)
+        self.hash = FileUtils.calculate_hash(self.file_name)
 
     def _modify_section(self, known_list=[]):
         body = self.body
