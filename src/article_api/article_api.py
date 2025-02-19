@@ -321,6 +321,11 @@ class ArticleAPI:
             )
         
         required_fields = {"title", "first_author", "year"}
+
+        for field in required_fields:
+            if data.get(field) is None:
+               data.pop(field, None) 
+
         if not required_fields.issubset(data):
             data = cls.get_basic_data(
                 data.get("title"),

@@ -17,6 +17,7 @@ class Knowledge:
             self, 
             file_name,
             db_entry:dict=None,
+            **kwargs
             ):
         logger.debug(f"Initializing Knowledge object with {file_name}")
         self.file_name = file_name

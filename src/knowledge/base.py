@@ -157,10 +157,11 @@ class KnowledgeBase:
 
     def _process_new_files(self):
         print(f"SB: > Checking for new files")
+        local = [os.path.splitext(os.path.basename(f))[0]  for f in glob.glob(os.path.join(self.note_directory, "*.md"))]
         for file_path in self._new_files():
             print(f"SB: > Processing new files: {file_path}")
             logger.debug(f"Processing new file: {file_path}")
-            note = self.T(file_path)
+            note = self.T(file_path, known_list = local)
 
             entry = note.db_entry()
             self.append_db_entry(entry)

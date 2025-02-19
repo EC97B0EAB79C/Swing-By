@@ -14,14 +14,13 @@ class ObsidianNote(Article):
     # Initialize the ObsidianNote class
     def __init__(
             self,
-            file_name,
-            db_entry = None
+            *args,
+            known_list = []
             ):
         super().__init__(
-            file_name,
-            db_entry
+            *args
         )
-        self.update_file()
+        self.update_file(known_list)
 
     ##
     # Create embeddings
@@ -69,7 +68,7 @@ class ObsidianNote(Article):
         references = self._create_wikilink_dict(new_references)
         if reference_body:
             reference_list = re.findall(r"\[\[(.*?)\]\]", reference_body)
-            references =  self._create_wikilink_dict(reference_list) | references
+            references = references | self._create_wikilink_dict(reference_list)
         references = dict(sorted(references.items()))
 
         return references

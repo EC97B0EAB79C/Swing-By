@@ -11,12 +11,14 @@ class DebugNote(Knowledge):
     def __init__(
             self,
             file_name,
-            db_entry = None
+            db_entry = None,
+            **kwargs
             ):
         self.issue_body = ""
         super().__init__(
             file_name,
-            db_entry
+            db_entry,
+            **kwargs
         )
         self.key = self.metadata.get("ID")
 
