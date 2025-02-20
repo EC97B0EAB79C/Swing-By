@@ -171,12 +171,15 @@ class KnowledgeBase:
     def process_updated_files(self):
         print(f"SB: > Checking for updated files")
         for i, row in self.db.iterrows():
+            note = None
             file_path = os.path.join(self.note_directory, row["file_name"])
             if FileUtils.calculate_hash(file_path) == row["hash"]:
-                continue
-            print(f"SB: > Processing updated files: {file_path}")
-            logger.debug(f"Processing updated file: {file_path}")
-            note = self.T(file_path, local_files = self.local_files)
+                logger.debug(f"Updating references: {file_path}")
+                note =  self.T(file_path, dict(row), local_files = self.local_files)
+            else:
+                print(f"SB: > Processing updated files: {file_path}")
+                logger.debug(f"Processing updated file: {file_path}")
+                note = self.T(file_path, local_files = self.local_files)
 
             entry = note.db_entry()
             self.db.loc[i] = entry
