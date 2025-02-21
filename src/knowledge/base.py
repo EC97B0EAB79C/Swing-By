@@ -7,6 +7,7 @@ import pandas
 import numpy as np
 
 from typing import Type
+from pathlib import Path
 
 import warnings
 from tables.exceptions import PerformanceWarning
@@ -32,10 +33,10 @@ class KnowledgeBase:
         self.db_path = os.path.join(Config.knowledgebase(), ".database", "db.h5")
         self.note_directory = Config.knowledgebase()
         self.notes = {}
-        self.local_files = [os.path.splitext(os.path.basename(f))[0]  for f in glob.glob(os.path.join(self.note_directory, "*.md"))]
+        self.local_files = {Path(f).stem for f in glob.glob(os.path.join(self.note_directory, "*.md"))}
         self._load_db()
 
-        self._process_new_files()
+        self._process_files()
 
     ##
     # DB Related
@@ -72,6 +73,14 @@ class KnowledgeBase:
         search_df["distance"] = search_df[key].apply(lambda x: float('inf') if x is None else np.linalg.norm(x - vector))
         search_df = search_df.sort_values(by='distance', ascending=False)
         return search_df[:n]
+    
+    def get_entry(self, key):
+        return self.db[self.db['key'] == key].iloc[0]
+    
+    def update_entry(self, key, entry):
+        i = self.db[self.db['key'] == key].index[0]
+        self.db.loc[i] = entry
+        self.save_db()
 
     ##
     # LLM Related
@@ -150,38 +159,39 @@ class KnowledgeBase:
             self.notes[key] = note
             return note
 
-    def _new_files(self):
-        db_files = set(self.db["file_name"].tolist())
-        note_files = set(os.path.basename(f) for f in glob.glob(os.path.join(self.note_directory, "*.md")))
-        new = note_files - db_files
-        return [os.path.join(self.note_directory, f) for f in new]
+    def _process_new_file(self, file_path):
+        print(f"SB: > Processing new files: {file_path}")
+        logger.debug(f"Processing new file: {file_path}")
+        note = self.T(file_path, local_files = self.local_files)
 
-    def _process_new_files(self):
-        print(f"SB: > Checking for new files")
-        for file_path in self._new_files():
-            print(f"SB: > Processing new files: {file_path}")
-            logger.debug(f"Processing new file: {file_path}")
+        entry = note.db_entry()
+        self.append_db_entry(entry)
+        self.notes[note.key] = note
+        self.save_db()
+
+    def _process_existing_file(self, file_path):
+        key = Path(file_path).stem
+        entry = dict(self.get_entry(key))
+        if FileUtils.calculate_hash(file_path) == entry["hash"]:
+                logger.debug(f"Updating references: {file_path}")
+                note =  self.T(file_path, entry, local_files = self.local_files)
+        else:
+            print(f"SB: > Processing updated files: {file_path}")
+            logger.debug(f"Processing updated file: {file_path}")
             note = self.T(file_path, local_files = self.local_files)
 
-            entry = note.db_entry()
-            self.append_db_entry(entry)
-            self.notes[note.key] = note
-            self.save_db()
+        entry = note.db_entry()
+        self.update_entry(key, entry)
+        self.notes[note.key] = note
 
-    def process_updated_files(self):
-        print(f"SB: > Checking for updated files")
-        for i, row in self.db.iterrows():
-            note = None
-            file_path = os.path.join(self.note_directory, row["file_name"])
-            if FileUtils.calculate_hash(file_path) == row["hash"]:
-                logger.debug(f"Updating references: {file_path}")
-                note =  self.T(file_path, dict(row), local_files = self.local_files)
+    def _process_files(self):
+        note_files = set(os.path.basename(f) for f in glob.glob(os.path.join(self.note_directory, "*.md")))
+        db_files = set(self.db["file_name"].tolist())
+
+        for file in note_files:
+            if file not in db_files:
+                self._process_new_file(file)
             else:
-                print(f"SB: > Processing updated files: {file_path}")
-                logger.debug(f"Processing updated file: {file_path}")
-                note = self.T(file_path, local_files = self.local_files)
-
-            entry = note.db_entry()
-            self.db.loc[i] = entry
-            self.notes[note.key] = note
-            self.save_db()
+                self._process_existing_file(file)
+            self.local_files.add(file)
+        #TODO: Improve existing reference update

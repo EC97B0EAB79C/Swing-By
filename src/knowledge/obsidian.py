@@ -1,8 +1,11 @@
 import logging
 import re
+import os
+from pathlib import Path
 
 from src.knowledge.article import Article
 
+from src.utils.config import Config
 from src.utils.md import MarkdownUtils
 from src.utils.file import FileUtils
 from src.utils.text import TextUtils
@@ -36,12 +39,20 @@ class ObsidianNote(Article):
     ##
     # MD
     def update_file(self):
+        old_file_path = os.path.join(Config.knowledgebase(), self.file_name)
+        if Path(self.file_name).stem == self.key:
+            new_file_name = os.path.join( self.key + ".md")
+            new_file_path = os.path.join(Config.knowledgebase(), new_file_name)
+            os.rename(old_file_path, new_file_path)
+            self.file_name = new_file_name
+            old_file_path = new_file_path
+
         metadata = self.md_metadata()
         self._modify_section()
 
         md_text = MarkdownUtils.create_md_text(metadata, self.body)
-        FileUtils.write(self.file_name, md_text)
-        self.hash = FileUtils.calculate_hash(self.file_name)
+        FileUtils.write(old_file_path, md_text)
+        self.hash = FileUtils.calculate_hash(old_file_path)
 
     def _modify_section(self):
         body = self.body

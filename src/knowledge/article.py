@@ -21,11 +21,7 @@ class Article(Knowledge):
             db_entry,
             **kwargs
         )
-        self.key = TextUtils.generate_sbkey(
-            self.metadata.get("title"),
-            self.metadata.get("author"),
-            self.metadata.get("date"),
-        )
+        self.key = self.metadata.get("key")
 
     def _generate_entry(self):
         self._extract_bibtex_data()
@@ -84,7 +80,7 @@ class Article(Knowledge):
         # Data
         result["title"] = self.metadata.get("title")
         result["author"] = self.metadata.get("author")
-        result["year"] = self.metadata.get("year")
+        result["year"] = int(self.metadata.get("year"))
 
         # References
         result["ref"] = self.metadata.get("ref")
@@ -98,7 +94,7 @@ class Article(Knowledge):
         # Data
         result["title"] = self.metadata.get("title")
         result["author"] = self.metadata.get("author")
-        result["year"] = self.metadata.get("year")
+        result["year"] = int(self.metadata.get("year"))
 
         # Keywords
         result["category"] = result["tags"][0]
