@@ -57,7 +57,7 @@ class TextUtils:
     
     @classmethod
     def generate_sbkey(self, title, author, year):
-        author_last_name = self.get_last_name(author)
+        author_last_name = self.get_last_name(self.get_author(author))
         author_last_name = self.format_entry(author_last_name, 6)
 
         year = str(year)
@@ -74,9 +74,9 @@ class TextUtils:
 
     @staticmethod
     def trim_lines(text, start, end):
-        text = text.strip("\n")
-        trimmed = text[start:end].strip()
-        retained = text[:start] + text[end:]
+        text = text.split("\n")
+        trimmed = "\n".join(text[start:end]).strip()
+        retained = "\n".join(text[:start] + text[end:])
         return trimmed, retained
 
 

@@ -15,7 +15,6 @@ def main():
             Config.type()
         )
     )
-    kb.process_updated_files()
 
     while True:
         query = input("Q: ")

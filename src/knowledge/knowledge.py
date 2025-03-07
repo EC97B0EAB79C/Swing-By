@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from src.utils.config import Config
 from src.utils.file import FileUtils
 from src.utils.md import MarkdownUtils
 
@@ -17,6 +18,7 @@ class Knowledge:
             self, 
             file_name,
             db_entry:dict=None,
+            **kwargs
             ):
         logger.debug(f"Initializing Knowledge object with {file_name}")
         self.file_name = file_name
@@ -33,9 +35,10 @@ class Knowledge:
         
     def _load_file(self):
         logger.debug("> Loading file")
-        note_lines = FileUtils.read_lines(self.file_name)
+        file_path = os.path.join(Config.knowledgebase(), self.file_name)
+        note_lines = FileUtils.read_lines(file_path)
         self.metadata, self.body = MarkdownUtils.extract_yaml(note_lines)
-        self.hash = FileUtils.calculate_hash(self.file_name)
+        self.hash = FileUtils.calculate_hash(file_path)
         self._extract_data()
 
     def _extract_data(self):
@@ -118,7 +121,7 @@ class Knowledge:
 
         result["updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         result["keywords"] = self.metadata.get("keywords")
-        result["file_name"] = os.path.basename(self.file_name)
+        result["file_name"] = self.file_name
         for k, v in self.embedding_dict().items():
             result[k] = v
         
