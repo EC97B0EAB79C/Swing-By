@@ -3,11 +3,11 @@
 
 name: Python application
 
-on:
-  push:
-    branches: [ "refactor", "pipeline-test" ]
-  pull_request:
-    branches: [ "pipeline-test" ]
+# on:
+#   push:
+#     branches: [ "refactor", "pipeline-test" ]
+#   pull_request:
+#     branches: [ "pipeline-test" ]
 
 permissions:
   contents: read
