@@ -1,10 +1,28 @@
 import { Notice, Plugin } from 'obsidian';
 
-export default class MyPlugin extends Plugin {
+import { BibTeXProcessor } from './processor/bibtex';
+
+export default class SwingBy extends Plugin {
 
     async onload() {
-        this.addRibbonIcon('dice', 'Test', () => {
-            new Notice('Hello, world!');
+
+        const bibtexProcessor = new BibTeXProcessor(this);
+
+        // ---- Commands -----------------------------------------------------
+        this.addCommand({
+            id: 'process-note',
+            name: 'Process Note',
+            hotkeys: [{ modifiers: ["Alt"], key: 's' }],
+            callback: async () => {
+                new Notice('Processing note...');
+                const file = this.app.workspace.getActiveFile();
+                if (!file) {
+                    new Notice('No active file');
+                    return;
+                }
+
+                bibtexProcessor.processBibTeX(file);
+            }
         });
     }
 }
