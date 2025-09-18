@@ -26,35 +26,31 @@ export class Helper {
     }
 
     private getAuthor(authors: string[]): string {
-        // Get the first author, or empty string if no authors
         return authors.length > 0 ? authors[0] : "";
     }
 
     private getLastName(author: string): string {
-        // Assuming author format is "LastName, FirstName" or just "LastName"
         const parts = author.split(',');
         return parts[0].trim();
     }
 
     private formatEntry(text: string, maxLength: number): string {
-        // Truncate or pad the text to the specified length
+        text = text.toLowerCase();
         if (text.length > maxLength) {
             return text.substring(0, maxLength);
         }
-        return text.padEnd(maxLength, ' ');
+        return text.padEnd(maxLength, '.');
     }
 
     private clean(text: string): string {
-        // Clean the text by removing special characters and normalizing whitespace
         return text
-            .replace(/[^\w\s]/g, ' ') // Replace non-word characters with spaces
-            .replace(/\s+/g, ' ')     // Replace multiple spaces with single space
+            .replace(/[^\w\s]/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim()
             .toLowerCase();
     }
 
     private isDigit(str: string): boolean {
-        // Check if string contains only digits
         return /^\d+$/.test(str);
     }
 }

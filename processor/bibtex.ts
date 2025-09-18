@@ -1,4 +1,5 @@
 import SwingBy from '../main';
+import { Helper } from './helper';
 
 import { Notice, TFile } from 'obsidian';
 import { parse } from '@retorquere/bibtex-parser';
@@ -8,13 +9,16 @@ export interface BibTeXEntry {
     title: string;
     authors: string[];
     year: string;
+    sbkey?: string;
 }
 
 export class BibTeXProcessor {
     plugin: SwingBy;
+    helper: Helper;
 
     constructor(plugin: SwingBy) {
         this.plugin = plugin;
+        this.helper = new Helper(plugin);
     }
 
     async processBibTeX(file: TFile): Promise<void> {
@@ -25,6 +29,9 @@ export class BibTeXProcessor {
             new Notice('No valid BibTeX entry found');
             return;
         }
+
+        entry.sbkey = this.helper.generateSBKey(entry);
+        console.log('Extracted BibTeX Entry:', entry);
 
         await this.populateFrontmatterWithEntry(file, entry);
 
@@ -69,6 +76,8 @@ export class BibTeXProcessor {
             frontmatter["title"] = entry.title || frontmatter["title"];
             frontmatter["author"] = entry.authors || frontmatter["author"];
             frontmatter["year"] = entry.year || frontmatter["year"];
+
+            frontmatter["key"] = entry.sbkey || frontmatter["key"];
         });
     }
 }
