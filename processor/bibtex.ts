@@ -5,10 +5,10 @@ import { Notice, TFile } from 'obsidian';
 import { parse } from '@retorquere/bibtex-parser';
 
 export interface BibTeXEntry {
-    citationKey: string;
     title: string;
-    authors: string[];
-    year: string;
+    authors?: string[];
+    year?: string;
+    citationKey?: string;
     sbkey?: string;
 }
 
@@ -18,7 +18,7 @@ export class BibTeXProcessor {
 
     constructor(plugin: SwingBy) {
         this.plugin = plugin;
-        this.helper = new Helper(plugin);
+        this.helper = new Helper();
     }
 
     async processBibTeX(file: TFile): Promise<void> {

@@ -8,7 +8,7 @@ export class Helper {
         authorLastName = this.formatEntry(authorLastName, 6);
 
         // Process year
-        let year = entry.year;
+        let year = entry.year || "";
         year = this.isDigit(year) ? year : ".";
         year = this.formatEntry(year, 4);
 
@@ -25,8 +25,8 @@ export class Helper {
         return sbkey;
     }
 
-    private getAuthor(authors: string[]): string {
-        return authors.length > 0 ? authors[0] : "";
+    private getAuthor(authors: string[] | undefined): string {
+        return authors && authors.length > 0 ? authors[0] : "";
     }
 
     private getLastName(author: string): string {
