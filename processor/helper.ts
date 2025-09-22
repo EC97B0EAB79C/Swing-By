@@ -49,6 +49,32 @@ export class Helper {
         return bestEntry;
     }
 
+    mergeEntries(primary: BibTeXEntry, secondary: BibTeXEntry | null): BibTeXEntry {
+        if (!secondary) {
+            return primary;
+        }
+        if (!primary) {
+            return secondary;
+        }
+
+        const merged: BibTeXEntry = { ...primary };
+
+        for (const key in secondary) {
+            if (
+                (merged as any)[key] === undefined ||
+                (Array.isArray((merged as any)[key]) && (merged as any)[key].length === 0) ||
+                ((merged as any)[key] === "" && (secondary as any)[key] !== "")
+            ) {
+                (merged as any)[key] = (secondary as any)[key];
+            } else if (Array.isArray((merged as any)[key]) && Array.isArray((secondary as any)[key])) {
+                const combined = new Set([...(merged as any)[key], ...(secondary as any)[key]]);
+                (merged as any)[key] = Array.from(combined);
+            }
+        }
+
+        return merged;
+    }
+
     // ----------------------------- Text Processing Helpers -----------------------------
     private getAuthor(authors: string[] | undefined): string {
         return authors && authors.length > 0 ? authors[0] : "";

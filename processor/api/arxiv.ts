@@ -8,7 +8,7 @@ export class ArxivProcessor {
 
     async fillEntry(entry: BibTeXEntry): Promise<BibTeXEntry> {
         const url = this.requestUrl(entry);
-        let entries = null;
+        let requestResults = null;
 
         console.log('Fetching from arXiv API:', url);
 
@@ -22,15 +22,15 @@ export class ArxivProcessor {
             }
 
             const xmlText = response.text;
-            entries = this.parseAtom1Response(xmlText);
+            requestResults = this.parseAtom1Response(xmlText);
         } catch (error) {
             console.error('Error fetching from arXiv API:', error);
             return entry;
         }
 
-        console.log('arXiv API entries:', entries);
-
-        entry = this.helper.fetchMostRelevant(entries, entry.title) || entry;
+        console.log('arXiv API entries:', requestResults);
+        const requestRelevant = this.helper.fetchMostRelevant(requestResults, entry.title);
+        entry = this.helper.mergeEntries(entry, requestRelevant);
 
         return entry;
     }
