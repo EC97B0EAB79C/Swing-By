@@ -1,24 +1,31 @@
 import SwingBy from '../main';
 import { Helper } from './helper';
+import { ArticleProcessor } from './article';
 
 import { Notice, TFile } from 'obsidian';
 import { parse } from '@retorquere/bibtex-parser';
 
 export interface BibTeXEntry {
+    // Article fields
     title: string;
     authors?: string[];
     year?: string;
     citationKey?: string;
+    // Key fields
     sbkey?: string;
+    arxivId?: string;
+    doi?: string[];
+    // Additional fields
+    summary?: string;
 }
 
 export class BibTeXProcessor {
+    private helper = new Helper();
+    private articleProcessor = new ArticleProcessor();
     plugin: SwingBy;
-    helper: Helper;
 
     constructor(plugin: SwingBy) {
         this.plugin = plugin;
-        this.helper = new Helper();
     }
 
     async processBibTeX(file: TFile): Promise<void> {
@@ -35,6 +42,8 @@ export class BibTeXProcessor {
 
         await this.populateFrontmatterWithEntry(file, entry);
 
+        const references = await this.articleProcessor.getReferences(entry);
+        console.log('Extracted References:', references);
     }
 
     extractEntries(markdownString: string, lang: string): BibTeXEntry | null {

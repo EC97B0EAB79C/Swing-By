@@ -1,8 +1,10 @@
 import { BibTeXEntry } from "./bibtex";
+import { ArxivProcessor } from "./api/arxiv";
 
 export class ArticleProcessor {
-    async getReferences(entry: BibTeXEntry): Promise<string[]> {
-        // Process the article entry
-        return [];
+    private arxivProcessor = new ArxivProcessor();
+    async getReferences(entry: BibTeXEntry): Promise<BibTeXEntry[]> {
+        // Test code 
+        return [await this.arxivProcessor.fillEntry(entry)];
     }
 }
