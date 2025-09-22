@@ -1,6 +1,8 @@
 import { BibTeXEntry } from "./bibtex";
+import levenshtein from "fast-levenshtein";
 
 export class Helper {
+    // ----------------------------- SB Key Generation -----------------------------
     generateSBKey(entry: BibTeXEntry): string {
         // Get author last name
         const author = this.getAuthor(entry.authors);
@@ -25,6 +27,29 @@ export class Helper {
         return sbkey;
     }
 
+    // ----------------------------- BibTeX Helpers -----------------------------
+    fetchMostRelevant(entries: BibTeXEntry[], title: string): BibTeXEntry | null {
+        if (entries.length === 0) {
+            return null;
+        }
+
+        const cleanedTitle = this.clean(title);
+        let bestEntry: BibTeXEntry | null = null;
+        let bestScore = Infinity;
+
+        for (const entry of entries) {
+            const entryTitle = this.clean(entry.title);
+            const distance = levenshtein.get(cleanedTitle, entryTitle);
+            if (distance < bestScore) {
+                bestScore = distance;
+                bestEntry = entry;
+            }
+        }
+
+        return bestEntry;
+    }
+
+    // ----------------------------- Text Processing Helpers -----------------------------
     private getAuthor(authors: string[] | undefined): string {
         return authors && authors.length > 0 ? authors[0] : "";
     }
