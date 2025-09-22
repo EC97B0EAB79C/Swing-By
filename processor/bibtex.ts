@@ -10,13 +10,13 @@ export interface BibTeXEntry {
     title: string;
     authors?: string[];
     year?: string;
-    citationKey?: string;
     // Key fields
     sbkey?: string;
     arxivId?: string;
     doi?: string[];
     // Additional fields
     summary?: string;
+    reference?: any[];
 }
 
 export class BibTeXProcessor {
@@ -46,7 +46,7 @@ export class BibTeXProcessor {
         console.log('Extracted References:', references);
     }
 
-    extractEntries(markdownString: string, lang: string): BibTeXEntry | null {
+    private extractEntries(markdownString: string, lang: string): BibTeXEntry | null {
         const regex = /```([a-zA-Z0-9-]+)?\n([\s\S]*?)\n```/g;
         let match;
         let blocks: string[] = [];
@@ -72,7 +72,6 @@ export class BibTeXProcessor {
         ) || [];
 
         const entryMap: BibTeXEntry = {
-            citationKey: entry.citationKey || "",
             title: entry.title || "",
             authors: authors,
             year: entry.year || "",

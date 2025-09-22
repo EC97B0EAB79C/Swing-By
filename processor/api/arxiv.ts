@@ -10,8 +10,6 @@ export class ArxivProcessor {
         const url = this.requestUrl(entry);
         let requestResults = null;
 
-        console.log('Fetching from arXiv API:', url);
-
         try {
             const response = await requestUrl({
                 url: url,
@@ -28,7 +26,6 @@ export class ArxivProcessor {
             return entry;
         }
 
-        console.log('arXiv API entries:', requestResults);
         const requestRelevant = this.helper.fetchMostRelevant(requestResults, entry.title);
         entry = this.helper.mergeEntries(entry, requestRelevant);
 

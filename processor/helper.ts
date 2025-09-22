@@ -28,17 +28,18 @@ export class Helper {
     }
 
     // ----------------------------- BibTeX Helpers -----------------------------
-    fetchMostRelevant(entries: BibTeXEntry[], title: string): BibTeXEntry | null {
+    fetchMostRelevant(entries: any[], title: string): any | null {
         if (entries.length === 0) {
             return null;
         }
 
         const cleanedTitle = this.clean(title);
-        let bestEntry: BibTeXEntry | null = null;
+        let bestEntry: any | null = null;
         let bestScore = Infinity;
 
         for (const entry of entries) {
-            const entryTitle = this.clean(entry.title);
+            if (!entry.title) continue;
+            const entryTitle = this.clean(Array.isArray(entry.title) ? entry.title[0] : entry.title);
             const distance = levenshtein.get(cleanedTitle, entryTitle);
             if (distance < bestScore) {
                 bestScore = distance;
@@ -76,6 +77,13 @@ export class Helper {
     }
 
     // ----------------------------- Text Processing Helpers -----------------------------
+    sameStrings(str1: string | undefined, str2: string | undefined): boolean {
+        if (!str1 || !str2) {
+            return false;
+        }
+        return this.clean(str1) === this.clean(str2);
+    }
+
     private getAuthor(authors: string[] | undefined): string {
         return authors && authors.length > 0 ? authors[0] : "";
     }
