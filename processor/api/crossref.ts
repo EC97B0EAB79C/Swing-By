@@ -75,13 +75,18 @@ export class CrossRefProcessor {
             year: item.year,
             doi: [item.DOI],
             references: Array.isArray(item.reference) ? item.reference.map((ref: any) => ({
-                sbkey: ref.title && ref.author && ref.year ? this.helper.generateSBKey({
-                    title: ref.title,
-                    authors: ref.author,
-                    year: ref.year
+                sbkey: ref.articleTitle && ref.author && ref.year ? this.helper.generateSBKey({
+                    title: ref.articleTitle,
+                    authors: [ref.author],
+                    year: ref.year,
                 }) : undefined,
                 doi: ref.DOI,
-                unstructured: ref.unstructured
+                unstructured: ref.unstructured,
+                proceedings: ref.volumeTitle ? {
+                    author: ref.author,
+                    volumeTitle: ref.volumeTitle,
+                    year: ref.year,
+                } : undefined,
             })) : [],
         }));
     }

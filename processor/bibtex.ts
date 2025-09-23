@@ -19,10 +19,17 @@ export interface BibTeXEntry {
     references?: References[];
 }
 
+export interface Procedings {
+    author?: string;
+    volumeTitle?: string;
+    year?: string;
+}
+
 export interface References {
     sbkey?: string;
     doi?: string;
     unstructured?: string;
+    proceedings?: Procedings;
 }
 
 export class BibTeXProcessor {
