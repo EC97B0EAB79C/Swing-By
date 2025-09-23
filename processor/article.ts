@@ -11,7 +11,7 @@ export class ArticleProcessor {
     private crossRefProcessor = new CrossRefProcessor();
     private adsProcessor = new AdsProcessor();
 
-    async getReferences(entry: BibTeXEntry): Promise<BibTeXEntry[]> {
+    async getReferences(entry: BibTeXEntry): Promise<string[]> {
         // TODO remove test code
         const crossRefResult = this.crossRefProcessor.sendRequest(entry, true);
         const arxivResult = this.arxivProcessor.sendRequest(entry);
@@ -25,7 +25,8 @@ export class ArticleProcessor {
         console.log('CrossRef Result:', await crossRefResult);
         console.log('CrossRef References SBKeys:', await crossRefReferences);
 
-        return [];
+        const mergedReferences = [...new Set([...await adsReferences, ...await crossRefReferences])];
+        return mergedReferences;
     }
 
     private async generateSBKeys(references: References[]): Promise<string[]> {
@@ -47,6 +48,14 @@ export class ArticleProcessor {
                 return entry.sbkey;
             }
         }
+        if (reference.doi) {
+            const entryByAds = await this.adsProcessor.sendRequest({ doi: reference.doi } as References);
+            if (entryByAds && entryByAds.sbkey) return entryByAds.sbkey;
+
+            const entryByCrossRef = await this.crossRefProcessor.sendRequest(reference.doi);
+            if (entryByCrossRef && entryByCrossRef.sbkey) return entryByCrossRef.sbkey;
+        }
+
         return null;
     }
 }
