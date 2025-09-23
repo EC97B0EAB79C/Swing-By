@@ -49,6 +49,9 @@ export class ArticleProcessor {
             }
         }
         if (reference.doi) {
+            const entryByArxiv = await this.arxivProcessor.sendRequest(reference.doi);
+            if (entryByArxiv && entryByArxiv.sbkey) return entryByArxiv.sbkey;
+
             const entryByAds = await this.adsProcessor.sendRequest({ doi: reference.doi } as References);
             if (entryByAds && entryByAds.sbkey) return entryByAds.sbkey;
 

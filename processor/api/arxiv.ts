@@ -6,7 +6,7 @@ import { Helper } from "../helper";
 export class ArxivProcessor {
     private helper = new Helper();
 
-    async sendRequest(entry: BibTeXEntry): Promise<BibTeXEntry> {
+    async sendRequest(entry: BibTeXEntry | string): Promise<BibTeXEntry | null> {
         const url = this.requestUrl(entry);
         let requestResults = null;
 
@@ -23,20 +23,28 @@ export class ArxivProcessor {
             requestResults = this.parseResponse(xmlText);
         } catch (error) {
             console.error('Error fetching from arXiv API:', error);
-            return entry;
+            return null;
         }
 
-        const requestRelevant = this.helper.fetchMostRelevant(requestResults, entry.title);
-        entry = this.helper.mergeEntries(entry, requestRelevant);
+        if (!requestResults || requestResults.length === 0) {
+            return null;
+        }
 
-        return entry;
+        const requestRelevant = typeof entry === "string" ? requestResults[0] :
+            this.helper.fetchMostRelevant(requestResults, entry.title);
+
+        return requestRelevant;
     }
 
-    private requestUrl(entry: BibTeXEntry): string {
+    private requestUrl(entry: BibTeXEntry | string): string {
         let baseUrl = "https://export.arxiv.org/api/query?search_query";
-        baseUrl += "=ti:" + encodeURIComponent(entry.title);
-        if (entry.authors && entry.authors.length > 0) {
-            baseUrl += "+AND+au:" + encodeURIComponent(entry.authors[0]);
+        if (typeof entry === "string") {
+            baseUrl += "=doi:" + encodeURIComponent(entry);
+        } else {
+            baseUrl += "=ti:" + encodeURIComponent(entry.title);
+            if (entry.authors && entry.authors.length > 0) {
+                baseUrl += "+AND+au:" + encodeURIComponent(entry.authors[0]);
+            }
         }
         baseUrl += "&max_results=5&sortBy=relevance";
         return baseUrl;
