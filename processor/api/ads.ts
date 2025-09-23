@@ -77,6 +77,11 @@ export class AdsProcessor {
             bibcode: item.bibcode,
             summary: item.abstract,
             references: this.getReferencesFromItem(item),
+            sbkey: item.first_author && item.year && item.title ? this.helper.generateSBKey({
+                title: item.title[0],
+                authors: [item.first_author],
+                year: item.year,
+            }) : undefined,
         }));
     }
 
