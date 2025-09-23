@@ -8,11 +8,12 @@ export class ArticleProcessor {
 
     async getReferences(entry: BibTeXEntry): Promise<BibTeXEntry[]> {
         // TODO remove test code 
-        const arxivResult = await this.arxivProcessor.fillEntry(entry);
-        console.log('Arxiv Result:', arxivResult);
+        const arxivResult = this.arxivProcessor.fillEntry(entry);
 
-        const crossRefResult = await this.crossRefProcessor.fillEntry(entry);
-        console.log('CrossRef Result:', crossRefResult);
+        const crossRefResult = this.crossRefProcessor.sendRequest(entry, true);
+
+        console.log('Arxiv Result:', await arxivResult);
+        console.log('CrossRef Result:', await crossRefResult);
         return [];
     }
 }

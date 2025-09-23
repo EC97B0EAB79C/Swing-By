@@ -16,7 +16,13 @@ export interface BibTeXEntry {
     doi?: string[];
     // Additional fields
     summary?: string;
-    reference?: any[];
+    references?: References[];
+}
+
+export interface References {
+    sbkey?: string;
+    doi?: string;
+    unstructured?: string;
 }
 
 export class BibTeXProcessor {
