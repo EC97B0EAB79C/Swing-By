@@ -6,7 +6,7 @@ import { Helper } from "../helper";
 export class ArxivProcessor {
     private helper = new Helper();
 
-    async fillEntry(entry: BibTeXEntry): Promise<BibTeXEntry> {
+    async sendRequest(entry: BibTeXEntry): Promise<BibTeXEntry> {
         const url = this.requestUrl(entry);
         let requestResults = null;
 
@@ -20,7 +20,7 @@ export class ArxivProcessor {
             }
 
             const xmlText = response.text;
-            requestResults = this.parseAtom1Response(xmlText);
+            requestResults = this.parseResponse(xmlText);
         } catch (error) {
             console.error('Error fetching from arXiv API:', error);
             return entry;
@@ -42,7 +42,7 @@ export class ArxivProcessor {
         return baseUrl;
     }
 
-    private parseAtom1Response(xmlText: string): BibTeXEntry[] {
+    private parseResponse(xmlText: string): BibTeXEntry[] {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
 

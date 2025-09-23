@@ -14,6 +14,7 @@ export interface BibTeXEntry {
     sbkey?: string;
     arxivId?: string;
     doi?: string[];
+    bibcode?: string;
     // Additional fields
     summary?: string;
     references?: References[];
@@ -29,6 +30,7 @@ export interface References {
     sbkey?: string;
     doi?: string;
     unstructured?: string;
+    bibcode?: string;
     proceedings?: Procedings;
 }
 

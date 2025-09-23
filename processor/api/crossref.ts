@@ -46,7 +46,7 @@ export class CrossRefProcessor {
             queryTitle: entry.title,
             queryAuthor: entry.authors ? entry.authors[0] : undefined,
             sort: WorkSortOptions.RELEVANCE,
-            // select: selectOptions,
+            select: selectOptions,
             rows: 5,
         }
 
@@ -68,26 +68,32 @@ export class CrossRefProcessor {
         if (!response || !Array.isArray(response)) {
             return [];
         }
-        console.log(response[0]);
         return response.map((item: any) => ({
             title: Array.isArray(item.title) ? item.title[0] : item.title,
             authors: Array.isArray(item.author) ? item.author.map((author: any) => `${author["family"]}, ${author["given"]}`) : item.author ? [item.author] : [],
             year: item.year,
             doi: [item.DOI],
-            references: Array.isArray(item.reference) ? item.reference.map((ref: any) => ({
-                sbkey: ref.articleTitle && ref.author && ref.year ? this.helper.generateSBKey({
-                    title: ref.articleTitle,
-                    authors: [ref.author],
-                    year: ref.year,
-                }) : undefined,
-                doi: ref.DOI,
-                unstructured: ref.unstructured,
-                proceedings: ref.volumeTitle ? {
-                    author: ref.author,
-                    volumeTitle: ref.volumeTitle,
-                    year: ref.year,
-                } : undefined,
-            })) : [],
+            references: this.getReferenceFromItem(item),
+        }));
+    }
+
+    private getReferenceFromItem(item: any): References[] {
+        if (!item || !Array.isArray(item.reference)) {
+            return [];
+        }
+        return item.reference.map((ref: any) => ({
+            sbkey: ref.articleTitle && ref.author && ref.year ? this.helper.generateSBKey({
+                title: ref.articleTitle,
+                authors: [ref.author],
+                year: ref.year,
+            }) : undefined,
+            doi: ref.DOI,
+            unstructured: ref.unstructured,
+            proceedings: ref.volumeTitle ? {
+                author: ref.author,
+                volumeTitle: ref.volumeTitle,
+                year: ref.year,
+            } : undefined,
         }));
     }
 }

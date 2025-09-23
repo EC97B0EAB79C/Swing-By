@@ -7,8 +7,8 @@ export class ArticleProcessor {
     private crossRefProcessor = new CrossRefProcessor();
 
     async getReferences(entry: BibTeXEntry): Promise<BibTeXEntry[]> {
-        // TODO remove test code 
-        const arxivResult = this.arxivProcessor.fillEntry(entry);
+        // TODO remove test code
+        const arxivResult = this.arxivProcessor.sendRequest(entry);
 
         const crossRefResult = this.crossRefProcessor.sendRequest(entry, true);
 
