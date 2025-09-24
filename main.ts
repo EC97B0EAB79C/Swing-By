@@ -21,7 +21,9 @@ export default class SwingBy extends Plugin {
                     return;
                 }
 
-                bibtexProcessor.processBibTeX(file);
+                // TODO remove test code
+                const test = await bibtexProcessor.processBibTeX(file);
+                console.log(test);
             }
         });
     }

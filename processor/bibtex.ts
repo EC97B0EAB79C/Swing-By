@@ -1,24 +1,46 @@
 import SwingBy from '../main';
 import { Helper } from './helper';
+import { ArticleProcessor } from './article';
 
 import { Notice, TFile } from 'obsidian';
 import { parse } from '@retorquere/bibtex-parser';
 
 export interface BibTeXEntry {
+    // Article fields
     title: string;
     authors?: string[];
     year?: string;
-    citationKey?: string;
+    // Key fields
     sbkey?: string;
+    arxivId?: string;
+    doi?: string[];
+    bibcode?: string;
+    // Additional fields
+    summary?: string;
+    references?: References[];
+}
+
+export interface Proceedings {
+    author?: string;
+    volumeTitle?: string;
+    year?: string;
+}
+
+export interface References {
+    sbkey?: string;
+    doi?: string;
+    unstructured?: string;
+    bibcode?: string;
+    proceedings?: Proceedings;
 }
 
 export class BibTeXProcessor {
+    private helper = new Helper();
+    private articleProcessor = new ArticleProcessor();
     plugin: SwingBy;
-    helper: Helper;
 
     constructor(plugin: SwingBy) {
         this.plugin = plugin;
-        this.helper = new Helper();
     }
 
     async processBibTeX(file: TFile): Promise<void> {
@@ -35,9 +57,11 @@ export class BibTeXProcessor {
 
         await this.populateFrontmatterWithEntry(file, entry);
 
+        const references = await this.articleProcessor.getReferences(entry);
+        console.log('Extracted References:', references);
     }
 
-    extractEntries(markdownString: string, lang: string): BibTeXEntry | null {
+    private extractEntries(markdownString: string, lang: string): BibTeXEntry | null {
         const regex = /```([a-zA-Z0-9-]+)?\n([\s\S]*?)\n```/g;
         let match;
         let blocks: string[] = [];
@@ -63,7 +87,6 @@ export class BibTeXProcessor {
         ) || [];
 
         const entryMap: BibTeXEntry = {
-            citationKey: entry.citationKey || "",
             title: entry.title || "",
             authors: authors,
             year: entry.year || "",
