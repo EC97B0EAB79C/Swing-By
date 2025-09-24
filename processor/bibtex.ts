@@ -43,7 +43,7 @@ export class BibTeXProcessor {
         this.plugin = plugin;
     }
 
-    async processBibTeX(file: TFile): Promise<void> {
+    async parseBibTeX(file: TFile): Promise<BibTeXEntry | void> {
         const content = await this.plugin.app.vault.read(file);
 
         const entry = this.extractEntries(content, 'bibtex')
@@ -53,12 +53,11 @@ export class BibTeXProcessor {
         }
 
         entry.sbkey = this.helper.generateSBKey(entry);
-        console.log('Extracted BibTeX Entry:', entry);
 
-        await this.populateFrontmatterWithEntry(file, entry);
+        return entry;
 
-        const references = await this.articleProcessor.getReferences(entry);
-        console.log('Extracted References:', references);
+        // const references = await this.articleProcessor.getReferences(entry);
+        // console.log('Extracted References:', references);
     }
 
     private extractEntries(markdownString: string, lang: string): BibTeXEntry | null {
@@ -92,15 +91,5 @@ export class BibTeXProcessor {
             year: entry.year || "",
         };
         return entryMap;
-    }
-
-    async populateFrontmatterWithEntry(file: TFile, entry: any): Promise<void> {
-        this.plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
-            frontmatter["title"] = entry.title || frontmatter["title"];
-            frontmatter["author"] = entry.authors || frontmatter["author"];
-            frontmatter["year"] = entry.year || frontmatter["year"];
-
-            frontmatter["key"] = entry.sbkey || frontmatter["key"];
-        });
     }
 }
