@@ -25,13 +25,13 @@ export class ArticleProcessor {
     private async generateSBKeys(references: References[]): Promise<string[]> {
         const sbkeys: string[] = [];
         for (const ref of references) {
-            const sbkey = await this.convertRefrenceToSBKey(ref);
+            const sbkey = await this.convertReferenceToSBKey(ref);
             if (sbkey) sbkeys.push(sbkey);
         }
         return sbkeys;
     }
 
-    private async convertRefrenceToSBKey(reference: References): Promise<string | null> {
+    private async convertReferenceToSBKey(reference: References): Promise<string | null> {
         if (reference.sbkey) {
             return reference.sbkey;
         }

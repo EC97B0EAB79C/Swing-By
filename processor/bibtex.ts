@@ -20,7 +20,7 @@ export interface BibTeXEntry {
     references?: References[];
 }
 
-export interface Procedings {
+export interface Proceedings {
     author?: string;
     volumeTitle?: string;
     year?: string;
@@ -31,7 +31,7 @@ export interface References {
     doi?: string;
     unstructured?: string;
     bibcode?: string;
-    proceedings?: Procedings;
+    proceedings?: Proceedings;
 }
 
 export class BibTeXProcessor {
