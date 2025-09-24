@@ -1,5 +1,10 @@
-
 import { Notice, TFile } from 'obsidian';
+
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkStringify from 'remark-stringify';
+import { Root } from 'mdast';
+
 
 import SwingBy from '../main';
 import { BibTeXEntry } from './bibtex';
@@ -20,6 +25,18 @@ export class NoteContentProcessor {
 
             frontmatter["key"] = entry.sbkey || frontmatter["key"];
         });
+    }
+
+    markdownToObject(markdown: string): Root {
+        const processor = unified().use(remarkParse);
+        const ast = processor.parse(markdown);
+        return ast;
+    }
+
+    objectToMarkdown(tree: Root): string {
+        const processor = unified().use(remarkStringify);
+        const markdownText = processor.stringify(tree);
+        return markdownText;
     }
 
 
