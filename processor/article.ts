@@ -12,20 +12,13 @@ export class ArticleProcessor {
     private adsProcessor = new AdsProcessor();
 
     async getReferences(entry: BibTeXEntry): Promise<string[]> {
-        // TODO remove test code
         const crossRefResult = this.crossRefProcessor.sendRequest(entry, true);
-        const arxivResult = this.arxivProcessor.sendRequest(entry);
         const adsResult = this.adsProcessor.sendRequest(entry, true);
 
-        const adsReferences = this.generateSBKeys((await adsResult)?.references || []);
-        const crossRefReferences = this.generateSBKeys((await crossRefResult)?.references || []);
+        const adsReferences = await this.generateSBKeys((await adsResult)?.references || []);
+        const crossRefReferences = await this.generateSBKeys((await crossRefResult)?.references || []);
 
-        console.log('ADS Result:', await adsResult);
-        console.log('ADS References SBKeys:', await adsReferences);
-        console.log('CrossRef Result:', await crossRefResult);
-        console.log('CrossRef References SBKeys:', await crossRefReferences);
-
-        const mergedReferences = [...new Set([...await adsReferences, ...await crossRefReferences])];
+        const mergedReferences = [...new Set([...adsReferences, ...crossRefReferences])];
         return mergedReferences;
     }
 

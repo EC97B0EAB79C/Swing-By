@@ -47,6 +47,10 @@ export class Helper {
             }
         }
 
+        const threshold = Math.max(3, Math.floor(cleanedTitle.length * 0.3));
+        if (bestScore > threshold) {
+            return null;
+        }
         return bestEntry;
     }
 
