@@ -23,25 +23,6 @@ export default class SwingBy extends Plugin {
         //             new Notice('No active markdown view');
         //             return;
         //         }
-        //         const file = this.app.workspace.getActiveFile();
-        //         if (!file) {
-        //             new Notice('No active file');
-        //             return;
-        //         }
-
-        //         const metadata = this.app.metadataCache.getFileCache(file);
-        //         console.log(metadata);
-
-        //         let referenceSectionLocation: any | null = null;
-        //         if (metadata && metadata.headings) {
-        //             for (let i = metadata.headings.length - 1; i >= 0; i--) {
-        //                 if (metadata.headings[i].heading.toLowerCase().includes("references")) {
-        //                     referenceSectionLocation = metadata.headings[i].position
-        //                     break;
-        //                 }
-        //             }
-        //         }
-        //     }
         // })
 
         this.addCommand({

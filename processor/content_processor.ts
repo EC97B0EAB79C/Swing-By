@@ -1,11 +1,5 @@
 import { Notice, TFile } from 'obsidian';
 
-import { unified } from 'unified';
-import remarkParse from 'remark-parse';
-import remarkStringify from 'remark-stringify';
-import { Root } from 'mdast';
-
-
 import SwingBy from '../main';
 import { BibTeXEntry } from './bibtex';
 
