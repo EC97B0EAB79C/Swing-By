@@ -1,4 +1,3 @@
-
 import { Notice, TFile } from 'obsidian';
 
 import SwingBy from '../main';
@@ -22,12 +21,17 @@ export class NoteContentProcessor {
         });
     }
 
+    async appendReferences(file: TFile, references: string[]): Promise<void> {
+        if (references.length === 0) {
+            new Notice("No references to append.");
+            return;
+        }
 
+        const links = references.map(ref => `[[${ref}]]`);
 
-    // ---- Helpers -----------------------------------------------------
-    private generateReferenceList(references: string[], level: number = 2): string {
-        let list = references.map(ref => `- [[${ref}]]`).join('\n')
-        list = `\n\n${"#".repeat(level)} References\n` + list + "\n";
-        return list
+        this.plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+            const existingReferences = frontmatter["references"] || [];
+            frontmatter["references"] = Array.from(new Set([...existingReferences, ...links]));
+        });
     }
 }
