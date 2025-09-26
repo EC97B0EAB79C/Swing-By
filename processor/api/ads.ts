@@ -24,7 +24,7 @@ export class AdsProcessor {
         let requestResults = null;
 
         try {
-            console.debug('ADS API Request:', query);
+            console.log('ADS API Request:', query);
             const response = await requestUrl({
                 url: `${this.endpoint}?q=${encodeURIComponent(query)}&fl=${encodeURIComponent(filter)}&rows=5`,
                 method: 'GET',
@@ -41,7 +41,7 @@ export class AdsProcessor {
         }
 
         if (!requestResults || requestResults.length === 0) {
-            console.debug('ADS API Response: No results found');
+            console.log('ADS API Response: No results found');
             return null;
         }
 
@@ -52,7 +52,7 @@ export class AdsProcessor {
         else if ('title' in entry && entry.title) {
             selectedEntry = this.helper.fetchMostRelevant(requestResults, entry.title) || (entry as BibTeXEntry);
         }
-        console.debug('ADS API Response:', selectedEntry?.title);
+        console.log('ADS API Response:', selectedEntry?.title);
 
         return selectedEntry;
     }

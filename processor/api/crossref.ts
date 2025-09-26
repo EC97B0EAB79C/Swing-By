@@ -19,7 +19,7 @@ export class CrossRefProcessor {
     async sendRequestDOI(doi: string): Promise<BibTeXEntry | null> {
         let requestResults = null;
         try {
-            console.debug('CrossRef API Request by DOI:', doi);
+            console.log('CrossRef API Request by DOI:', doi);
             const response = await this.client.work(doi);
             if (!response.ok || response.status !== 200) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -33,12 +33,12 @@ export class CrossRefProcessor {
         }
 
         if (!requestResults || requestResults.length === 0) {
-            console.debug('CrossRef API Response by DOI: No results found');
+            console.log('CrossRef API Response by DOI: No results found');
             return null;
         }
 
         const selectedEntry = requestResults[0];
-        console.debug('CrossRef API Response by DOI:', selectedEntry.title);
+        console.log('CrossRef API Response by DOI:', selectedEntry.title);
         return selectedEntry;
     }
 
@@ -63,7 +63,7 @@ export class CrossRefProcessor {
         let requestResults = null;
 
         try {
-            console.debug('CrossRef API Request by Query:', query);
+            console.log('CrossRef API Request by Query:', query);
             const response = await this.client.works(query)
             if (!response.ok || response.status !== 200) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -76,12 +76,12 @@ export class CrossRefProcessor {
         }
 
         if (!requestResults || requestResults.length === 0) {
-            console.debug('CrossRef API Response by Query: No results found');
+            console.log('CrossRef API Response by Query: No results found');
             return null;
         }
 
         const selectedEntry = this.helper.fetchMostRelevant(requestResults, entry.title) || entry;
-        console.debug('CrossRef API Response by Query:', selectedEntry.title);
+        console.log('CrossRef API Response by Query:', selectedEntry.title);
         return selectedEntry;
     }
 

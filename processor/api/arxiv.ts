@@ -11,7 +11,7 @@ export class ArxivProcessor {
         let requestResults = null;
 
         try {
-            console.debug('arXiv API Request:', url);
+            console.log('arXiv API Request:', url);
             const response = await requestUrl({
                 url: url,
                 method: 'GET'
@@ -28,12 +28,13 @@ export class ArxivProcessor {
         }
 
         if (!requestResults || requestResults.length === 0) {
+            console.log('arXiv API Response: No results found');
             return null;
         }
 
         const selectedEntry = typeof entry === "string" ? requestResults[0] :
             this.helper.fetchMostRelevant(requestResults, entry.title);
-        console.debug('arXiv API Response:', selectedEntry.title);
+        console.log('arXiv API Response:', selectedEntry.title);
 
         return selectedEntry;
     }
