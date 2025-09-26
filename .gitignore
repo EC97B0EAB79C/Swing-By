@@ -1,6 +1,7 @@
 # build output
 main.js
 package-lock.json
+data.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

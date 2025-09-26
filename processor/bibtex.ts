@@ -36,7 +36,6 @@ export interface References {
 
 export class BibTeXProcessor {
     private helper = new Helper();
-    private articleProcessor = new ArticleProcessor();
     plugin: SwingBy;
 
     constructor(plugin: SwingBy) {
