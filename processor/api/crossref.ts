@@ -17,18 +17,29 @@ export class CrossRefProcessor {
     }
 
     async sendRequestDOI(doi: string): Promise<BibTeXEntry | null> {
+        let requestResults = null;
         try {
+            console.log('CrossRef API Request by DOI:', doi);
             const response = await this.client.work(doi);
             if (!response.ok || response.status !== 200) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const content = response.content.message;
-            return this.parseResponse([content])[0];
+            requestResults = this.parseResponse([content]);
         } catch (error) {
             console.error('Error fetching from CrossRef API by DOI:', error);
             return null;
         }
+
+        if (!requestResults || requestResults.length === 0) {
+            console.log('CrossRef API Response by DOI: No results found');
+            return null;
+        }
+
+        const selectedEntry = requestResults[0];
+        console.log('CrossRef API Response by DOI:', selectedEntry.title);
+        return selectedEntry;
     }
 
     async sendRequestQuery(entry: BibTeXEntry, getReferences = false): Promise<BibTeXEntry | null> {
@@ -49,19 +60,29 @@ export class CrossRefProcessor {
             select: selectOptions,
             rows: 5,
         }
+        let requestResults = null;
 
         try {
+            console.log('CrossRef API Request by Query:', query);
             const response = await this.client.works(query)
             if (!response.ok || response.status !== 200) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const responseEntries = this.parseResponse(response.content.message.items);
-            return this.helper.fetchMostRelevant(responseEntries, entry.title);
+            requestResults = this.parseResponse(response.content.message.items);
         } catch (error) {
             console.error('Error fetching from CrossRef API:', error);
             return null;
         }
+
+        if (!requestResults || requestResults.length === 0) {
+            console.log('CrossRef API Response by Query: No results found');
+            return null;
+        }
+
+        const selectedEntry = this.helper.fetchMostRelevant(requestResults, entry.title) || entry;
+        console.log('CrossRef API Response by Query:', selectedEntry.title);
+        return selectedEntry;
     }
 
     private parseResponse(response: any): BibTeXEntry[] {

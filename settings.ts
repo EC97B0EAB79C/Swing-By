@@ -28,7 +28,6 @@ export class SwingBySettingsTab extends PluginSettingTab {
         let { containerEl } = this;
         containerEl.empty();
 
-
         // ---- API Settings -----------------------------------------------------
         new Setting(containerEl)
             .setHeading()
@@ -47,7 +46,5 @@ export class SwingBySettingsTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     })
             );
-
     }
-
 }
