@@ -2,17 +2,18 @@ import SwingBy from './main';
 
 import { App, PluginSettingTab, Setting } from 'obsidian';
 
-export interface SwingBySettings {
-
-
-    // API Keys
+export interface ArticleSettings {
     apiKeyADS: string;
 }
 
-export const DEFAULT_SETTINGS: SwingBySettings = {
+export interface SwingBySettings {
+    article: ArticleSettings;
+}
 
-    // API Keys
-    apiKeyADS: '',
+export const DEFAULT_SETTINGS: SwingBySettings = {
+    article: {
+        apiKeyADS: '',
+    },
 };
 
 export class SwingBySettingsTab extends PluginSettingTab {
@@ -40,9 +41,9 @@ export class SwingBySettingsTab extends PluginSettingTab {
             .addText((text) =>
                 text
                     .setPlaceholder('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-                    .setValue(this.plugin.settings.apiKeyADS)
+                    .setValue(this.plugin.settings.article.apiKeyADS)
                     .onChange(async (value) => {
-                        this.plugin.settings.apiKeyADS = value;
+                        this.plugin.settings.article.apiKeyADS = value;
                         await this.plugin.saveSettings();
                     })
             );

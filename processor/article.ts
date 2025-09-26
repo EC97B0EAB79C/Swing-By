@@ -1,4 +1,5 @@
 import { BibTeXEntry, References } from "./bibtex";
+import { ArticleSettings } from "../settings";
 import { Helper } from "./helper";
 import { ArxivProcessor } from "./api/arxiv";
 import { CrossRefProcessor } from "./api/crossref";
@@ -10,6 +11,13 @@ export class ArticleProcessor {
     private arxivProcessor = new ArxivProcessor();
     private crossRefProcessor = new CrossRefProcessor();
     private adsProcessor = new AdsProcessor();
+
+    private settings: ArticleSettings;
+
+    constructor(settings: ArticleSettings) {
+        this.settings = settings;
+        this.adsProcessor.setApiKey(this.settings.apiKeyADS);
+    }
 
     async getReferences(entry: BibTeXEntry): Promise<string[]> {
         const crossRefResult = this.crossRefProcessor.sendRequest(entry, true);

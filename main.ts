@@ -14,7 +14,7 @@ export default class SwingBy extends Plugin {
         this.addSettingTab(new SwingBySettingsTab(this.app, this));
 
         const bibtexProcessor = new BibTeXProcessor(this);
-        const articleProcessor = new ArticleProcessor();
+        const articleProcessor = new ArticleProcessor(this.settings.article);
         const noteContentProcessor = new NoteContentProcessor(this);
 
         // ---- Commands -----------------------------------------------------
