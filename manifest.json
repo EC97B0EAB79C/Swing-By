@@ -1,0 +1,10 @@
+{
+    "id": "swing-by",
+    "name": "Swing By",
+    "version": "0.1.0",
+    "minAppVersion": "0.15.0",
+    "description": "",
+    "author": "EC97B0EAB79C",
+    "authorUrl": "https://github.com/EC97B0EAB79C",
+    "isDesktopOnly": false
+}

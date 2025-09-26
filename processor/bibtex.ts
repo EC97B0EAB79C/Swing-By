@@ -1,0 +1,94 @@
+import SwingBy from '../main';
+import { Helper } from './helper';
+import { ArticleProcessor } from './article';
+
+import { Notice, TFile } from 'obsidian';
+import { parse } from '@retorquere/bibtex-parser';
+
+export interface BibTeXEntry {
+    // Article fields
+    title: string;
+    authors?: string[];
+    year?: string;
+    // Key fields
+    sbkey?: string;
+    arxivId?: string;
+    doi?: string[];
+    bibcode?: string;
+    // Additional fields
+    summary?: string;
+    references?: References[];
+}
+
+export interface Proceedings {
+    author?: string;
+    volumeTitle?: string;
+    year?: string;
+}
+
+export interface References {
+    sbkey?: string;
+    doi?: string;
+    unstructured?: string;
+    bibcode?: string;
+    proceedings?: Proceedings;
+}
+
+export class BibTeXProcessor {
+    private helper = new Helper();
+    plugin: SwingBy;
+
+    constructor(plugin: SwingBy) {
+        this.plugin = plugin;
+    }
+
+    async parseBibTeX(file: TFile): Promise<BibTeXEntry | void> {
+        const content = await this.plugin.app.vault.read(file);
+
+        const entry = this.extractEntries(content, 'bibtex')
+        if (!entry) {
+            new Notice('No valid BibTeX entry found');
+            return;
+        }
+
+        entry.sbkey = this.helper.generateSBKey(entry);
+
+        return entry;
+
+        // const references = await this.articleProcessor.getReferences(entry);
+        // console.log('Extracted References:', references);
+    }
+
+    private extractEntries(markdownString: string, lang: string): BibTeXEntry | null {
+        const regex = /```([a-zA-Z0-9-]+)?\n([\s\S]*?)\n```/g;
+        let match;
+        let blocks: string[] = [];
+
+        while ((match = regex.exec(markdownString)) !== null) {
+            if (match[1] && match[1].toLowerCase() === lang.toLowerCase()) {
+                blocks.push(match[2].trim());
+            }
+        }
+
+        if (blocks.length === 0) {
+            return null;
+        }
+
+        const entries = parse(blocks.join('\n\n'));
+        if (entries.errors.length > 0 || entries.entries.length === 0) {
+            return null;
+        }
+
+        const entry = entries.entries[0].fields;
+        const authors = entry["author"]?.map((author: any) =>
+            `${author["lastName"]}, ${author["firstName"]}`
+        ) || [];
+
+        const entryMap: BibTeXEntry = {
+            title: entry.title || "",
+            authors: authors,
+            year: entry.year || "",
+        };
+        return entryMap;
+    }
+}
