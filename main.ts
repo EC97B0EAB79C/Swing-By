@@ -1,15 +1,20 @@
 import { MarkdownFileInfo, MarkdownView, Notice, Plugin, Editor, Pos } from 'obsidian';
 
+import { SwingBySettings, SwingBySettingsTab, DEFAULT_SETTINGS } from './settings';
+
 import { BibTeXProcessor } from './processor/bibtex';
 import { ArticleProcessor } from './processor/article';
 import { NoteContentProcessor } from './processor/content_processor';
 
 export default class SwingBy extends Plugin {
+    settings!: SwingBySettings;
 
     async onload() {
+        await this.loadSettings();
+        this.addSettingTab(new SwingBySettingsTab(this.app, this));
 
         const bibtexProcessor = new BibTeXProcessor(this);
-        const articleProcessor = new ArticleProcessor();
+        const articleProcessor = new ArticleProcessor(this.settings.article);
         const noteContentProcessor = new NoteContentProcessor(this);
 
         // ---- Commands -----------------------------------------------------
@@ -55,5 +60,13 @@ export default class SwingBy extends Plugin {
                 new Notice('Appended references to the note');
             }
         });
+    }
+
+    async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
+
+    async saveSettings() {
+        await this.saveData(this.settings);
     }
 }

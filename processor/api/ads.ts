@@ -6,10 +6,15 @@ import { Helper } from "../helper";
 export class AdsProcessor {
     private helper = new Helper();
     private endpoint = "https://ui.adsabs.harvard.edu/v1/search/query";
+    private apiKey = '';
+
+    setApiKey(key: string) {
+        this.apiKey = key;
+    }
 
     async sendRequest(entry: BibTeXEntry | References, getReferences = false): Promise<BibTeXEntry | null> {
         const headers = {
-            "Authorization": `Bearer ${this.helper.getAdsApiKey()}`,
+            "Authorization": `Bearer ${this.apiKey}`,
         };
         const query = this.createQuery(entry);
         if (!query || query.length === 0) {
