@@ -21,8 +21,10 @@ export class AdsProcessor {
             return {} as BibTeXEntry;
         }
         const filter = "doi,abstract,title,first_author,bibcode,year" + (getReferences ? ",reference" : "");
+        let requestResults = null;
 
         try {
+            console.debug('ADS API Request:', query);
             const response = await requestUrl({
                 url: `${this.endpoint}?q=${encodeURIComponent(query)}&fl=${encodeURIComponent(filter)}&rows=5`,
                 method: 'GET',
@@ -32,18 +34,27 @@ export class AdsProcessor {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const responseEntries = this.parseResponse(response.json.response.docs);
-            if (responseEntries.length === 1) {
-                return responseEntries[0];
-            }
-            if ('title' in entry && entry.title) {
-                return this.helper.fetchMostRelevant(responseEntries, entry.title) || (entry as BibTeXEntry);
-            }
+            requestResults = this.parseResponse(response.json.response.docs);
         } catch (error) {
             console.error('Error fetching from ADS API:', error);
-            return entry as BibTeXEntry;
+            return null;
         }
-        return null;
+
+        if (!requestResults || requestResults.length === 0) {
+            console.debug('ADS API Response: No results found');
+            return null;
+        }
+
+        let selectedEntry: BibTeXEntry | null = null;
+        if (requestResults.length === 1) {
+            selectedEntry = requestResults[0];
+        }
+        else if ('title' in entry && entry.title) {
+            selectedEntry = this.helper.fetchMostRelevant(requestResults, entry.title) || (entry as BibTeXEntry);
+        }
+        console.debug('ADS API Response:', selectedEntry?.title);
+
+        return selectedEntry;
     }
 
     private createQuery(detail: BibTeXEntry | References): string {

@@ -11,6 +11,7 @@ export class ArxivProcessor {
         let requestResults = null;
 
         try {
+            console.debug('arXiv API Request:', url);
             const response = await requestUrl({
                 url: url,
                 method: 'GET'
@@ -30,10 +31,11 @@ export class ArxivProcessor {
             return null;
         }
 
-        const requestRelevant = typeof entry === "string" ? requestResults[0] :
+        const selectedEntry = typeof entry === "string" ? requestResults[0] :
             this.helper.fetchMostRelevant(requestResults, entry.title);
+        console.debug('arXiv API Response:', selectedEntry.title);
 
-        return requestRelevant;
+        return selectedEntry;
     }
 
     private requestUrl(entry: BibTeXEntry | string): string {
