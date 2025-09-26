@@ -1,36 +1,43 @@
-# Paper-Relations
-Process and connect relations of papers
+# Swing-By
 
-This script:
-- extracts BibTeX entry in Markdown file and creates Markdown metadata
-- using ChatGPT-4o-mini, create keywords from Markdown file
-- add metadata and keywords to given Markdown file
+Swing-By is an Obsidian plugin that helps you process and connect relations of papers.
 
-## Usage
+## Features
 
-```bash
-$ paper_rel_gen.py -h
-usage: paper_rel_gen [-h] [-vs] filename
+- Extracts BibTeX entry in a Markdown file and creates Markdown metadata.
+- Creates keywords from the Markdown file using AI.
+- Adds metadata and keywords to the given Markdown file.
 
-Processes markdown notes with BibTeX to add metadata to paper notes.
+## For Developers
 
-positional arguments:
-  filename             Markdown file to process.
+This plugin is currently in development. To install it for testing and development, follow these steps:
 
-options:
-  -h, --help           show this help message and exit
-  -vs, --vector-store  Creates embedding vector of the text.
-```
-
-### Quick Start
-1. copy `paper_rel_gen.py` to `~/.local/bin` or other directory to use
-2. install dependencies from `requirements.txt`
-    - if using venv change `python` in [first line](https://github.com/EC97B0EAB79C/Paper-Relations/blob/main/paper_rel_gen.py#L1) to your venv location
-3. apply and setup [Github Models Marketplace](https://github.com/marketplace/models)
-4. run
+1.  **Clone the repository:**
     ```bash
-    paper_rel_gen filename
+    git clone https://github.com/EC97B0EAB79C/Swing-By.git
     ```
+2.  **Navigate to the project directory:**
+    ```bash
+    cd Swing-By
+    ```
+3.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+4.  **Build the plugin:**
+    - For development (watches for changes):
+      ```bash
+      npm run dev
+      ```
+    - For production:
+      ```bash
+      npm run build
+      ```
+5.  **Install the plugin in Obsidian:**
+    - Copy the `main.js`, `manifest.json` files to your Obsidian vault's `.obsidian/plugins/swing-by/` directory.
+    - Reload Obsidian.
+    - Enable the "Swing-By" plugin in the Obsidian settings.
 
 ## Acknowledgement
-- Thank you to arXiv for use of its open access interoperability.
+
+- Thank you to arXiv and Crossref for use of their open access interoperability.
