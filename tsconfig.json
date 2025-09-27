@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "target": "esnext",
+    "lib": ["DOM", "ESNext"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "declaration": false,
+    "outDir": "./dist" // Or whatever your esbuild config uses as output
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}
