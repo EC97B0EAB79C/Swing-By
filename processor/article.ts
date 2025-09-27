@@ -6,6 +6,8 @@ import { CrossRefProcessor } from "./api/crossref";
 import { AdsProcessor } from "./api/ads";
 
 export class ArticleProcessor {
+    private helper = new Helper();
+
     private arxivProcessor = new ArxivProcessor();
     private crossRefProcessor = new CrossRefProcessor();
     private adsProcessor = new AdsProcessor();
@@ -24,6 +26,13 @@ export class ArticleProcessor {
 
         const adsReferences = this.generateSBKeys((await adsResult)?.references || []);
         const crossRefReferences = this.generateSBKeys((await crossRefResult)?.references || []);
+
+        if (!this.helper.sameStrings(entry?.title, (await adsResult)?.title)) {
+            console.warn(`Title mismatch with ADS: ${entry.title}`);
+        }
+        if (!this.helper.sameStrings(entry?.title, (await crossRefResult)?.title)) {
+            console.warn(`Title mismatch with CrossRef: ${entry.title}`);
+        }
 
         const mergedReferences = [...new Set([...await adsReferences, ...await crossRefReferences])];
         return mergedReferences;

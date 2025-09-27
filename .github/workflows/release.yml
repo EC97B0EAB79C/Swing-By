@@ -1,0 +1,54 @@
+name: Build and Draft Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version number for the release (e.g., 1.2.0)'
+        required: true
+
+jobs:
+  build_and_draft:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Create and Push Tag
+        run: |
+          # Configure git user
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create and push the tag
+          TAG="v${{ github.event.inputs.version }}"
+          echo "Creating and pushing tag: $TAG"
+          git tag "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Create Draft Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ github.event.inputs.version }}"
+          echo "Creating draft release for tag: $TAG"
+          zip obsidian-tag-generator-"$TAG".zip main.js manifest.json
+
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --draft \
+            --notes "Draft release for version $TAG." \
+            obsidian-tag-generator-"$TAG".zip
