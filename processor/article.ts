@@ -19,7 +19,7 @@ export class ArticleProcessor {
         this.adsProcessor.setApiKey(this.settings.apiKeyADS);
     }
 
-    async getReferences(entry: BibTeXEntry): Promise<string[]> {
+    async getReferences(entry: BibTeXEntry): Promise<[string[], { [key: string]: string[] }]> {
         console.info(`Fetching references for: ${entry.title}`);
         const crossRefResult = this.crossRefProcessor.sendRequest(entry, true);
         const adsResult = this.adsProcessor.sendRequest(entry, true);
@@ -27,15 +27,25 @@ export class ArticleProcessor {
         const adsReferences = this.generateSBKeys((await adsResult)?.references || []);
         const crossRefReferences = this.generateSBKeys((await crossRefResult)?.references || []);
 
+        let mergedReferences: string[] = [];
+        let mismatchReferences: { [key: string]: string[] } = {};
         if (!this.helper.sameStrings(entry?.title, (await adsResult)?.title)) {
             console.warn(`Title mismatch with ADS: ${entry.title}`);
+            mismatchReferences.ads = await adsReferences;
         }
-        if (!this.helper.sameStrings(entry?.title, (await crossRefResult)?.title)) {
-            console.warn(`Title mismatch with CrossRef: ${entry.title}`);
+        else {
+            mergedReferences = [...new Set([...mergedReferences, ...await adsReferences])];
         }
 
-        const mergedReferences = [...new Set([...await adsReferences, ...await crossRefReferences])];
-        return mergedReferences;
+        if (!this.helper.sameStrings(entry?.title, (await crossRefResult)?.title)) {
+            console.warn(`Title mismatch with CrossRef: ${entry.title}`);
+            mismatchReferences.crossref = await crossRefReferences;
+        }
+        else {
+            mergedReferences = [...new Set([...mergedReferences, ...await crossRefReferences])];
+        }
+
+        return [mergedReferences, mismatchReferences];
     }
 
     private async generateSBKeys(references: References[]): Promise<string[]> {
