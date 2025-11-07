@@ -24,12 +24,18 @@ export class ArticleProcessor {
         const crossRefResult = this.crossRefProcessor.sendRequest(entry, true);
         const adsResult = this.adsProcessor.sendRequest(entry, true);
 
-        const adsReferences = this.generateSBKeys((await adsResult)?.references || []);
-        const crossRefReferences = this.generateSBKeys((await crossRefResult)?.references || []);
+        const [adsData, crossRefData] = await Promise.all([adsResult, crossRefResult]);
+
+        const adsReferences = this.generateSBKeys(adsData?.references || []);
+        const crossRefReferences = this.generateSBKeys(crossRefData?.references || []);
 
         let mergedReferences: string[] = [];
         let mismatchReferences: { [key: string]: string[] } = {};
-        if (!this.helper.sameStrings(entry?.title, (await adsResult)?.title)) {
+
+        if (adsData === null || adsData?.title === undefined) {
+            console.warn(`No ADS entry found for: ${entry.title}`);
+        }
+        else if (!this.helper.sameStrings(entry?.title, adsData?.title)) {
             console.warn(`Title mismatch with ADS: ${entry.title}`);
             mismatchReferences.ads = await adsReferences;
         }
@@ -37,7 +43,10 @@ export class ArticleProcessor {
             mergedReferences = [...new Set([...mergedReferences, ...await adsReferences])];
         }
 
-        if (!this.helper.sameStrings(entry?.title, (await crossRefResult)?.title)) {
+        if (crossRefData === null || crossRefData?.title === undefined) {
+            console.warn(`No CrossRef entry found for: ${entry.title}`);
+        }
+        else if (!this.helper.sameStrings(entry?.title, crossRefData?.title)) {
             console.warn(`Title mismatch with CrossRef: ${entry.title}`);
             mismatchReferences.crossref = await crossRefReferences;
         }
