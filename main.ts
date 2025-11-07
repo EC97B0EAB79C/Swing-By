@@ -2,7 +2,7 @@ import { MarkdownFileInfo, MarkdownView, Notice, Plugin, Editor, Pos } from 'obs
 
 import { SwingBySettings, SwingBySettingsTab, DEFAULT_SETTINGS } from './settings';
 
-import { MismatchModal } from 'ui/mismatch_modal';
+import { MismatchModal } from './ui/mismatch_modal';
 
 import { BibTeXProcessor } from './processor/bibtex';
 import { ArticleProcessor } from './processor/article';
@@ -62,8 +62,7 @@ export default class SwingBy extends Plugin {
 
                 console.log(references)
                 if (Object.keys(references[1]).length > 0) {
-                    let mismatchModal = new MismatchModal(this.app);
-                    mismatchModal.open();
+                    new MismatchModal(this.app).open();
                 }
 
                 new Notice('Appended references to the note');
