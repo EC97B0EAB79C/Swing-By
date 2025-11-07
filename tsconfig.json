@@ -10,7 +10,8 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "declaration": false,
-    "outDir": "./dist" // Or whatever your esbuild config uses as output
+    "outDir": "./dist", // Or whatever your esbuild config uses as output
+    "typeRoots": ["./node_modules/@types", "./types"]
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]
