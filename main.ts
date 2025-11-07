@@ -2,6 +2,8 @@ import { MarkdownFileInfo, MarkdownView, Notice, Plugin, Editor, Pos } from 'obs
 
 import { SwingBySettings, SwingBySettingsTab, DEFAULT_SETTINGS } from './settings';
 
+import { MismatchModal } from './ui/mismatch_modal';
+
 import { BibTeXProcessor } from './processor/bibtex';
 import { ArticleProcessor } from './processor/article';
 import { NoteContentProcessor } from './processor/content_processor';
@@ -56,7 +58,12 @@ export default class SwingBy extends Plugin {
                 new Notice('Extracted metadata from BibTeX entry');
 
                 const references = await articleProcessor.getReferences(entry);
-                await noteContentProcessor.appendReferences(file, references);
+                await noteContentProcessor.appendReferences(file, references[0]);
+
+                if (Object.keys(references[1]).length > 0) {
+                    new MismatchModal(this.app).open();
+                }
+
                 new Notice('Appended references to the note');
             }
         });
