@@ -60,7 +60,6 @@ export default class SwingBy extends Plugin {
                 const references = await articleProcessor.getReferences(entry);
                 await noteContentProcessor.appendReferences(file, references[0]);
 
-                console.log(references)
                 if (Object.keys(references[1]).length > 0) {
                     new MismatchModal(this.app).open();
                 }
